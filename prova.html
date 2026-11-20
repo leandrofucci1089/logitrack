@@ -388,19 +388,15 @@
     // Restituisce gli operatori visibili all'admin loggato:
     // - Admin Cooperativa: vede TUTTI i suoi dipendenti (sia su CANDIDA sia su altri clienti)
     // - Super Admin (leandrofucci1089@gmail.com): vede i suoi dipendenti diretti + i lavoratori delle cooperative assegnati a CANDIDA
-    function getScopedOperatori() {
+   function getScopedOperatori() {
       const ctx = getAdminContext();
       if (!ctx.isSuperAdmin && ctx.coop) {
         return state.operatori.filter(function (o) {
           return o.cooperativa_id === ctx.coop.id;
         });
       }
-      return state.operatori.filter(function (o) {
-        if (!o.cooperativa_id) return true;
-        const sede = String(o.sede_lavoro || 'CANDIDA').trim().toUpperCase();
-        return sede === 'CANDIDA' || sede === '' || sede === 'SEDE PRINCIPALE';
-      });
-    }
+      return state.operatori;
+    } 
 
     function getScopedTimbrature() {
       const allowedIds = new Set(getScopedOperatori().map(function (o) { return o.id; }));
