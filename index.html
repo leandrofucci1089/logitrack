@@ -203,6 +203,23 @@
     </div>
   </div>
 
+  <!-- BANNER CONFERMA TIMBRATURA (QR / GPS) -->
+  <div id="clockConfirmModal" onclick="closeClockConfirmModal()" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div id="clockConfirmCard" class="bg-zinc-950 border-2 border-emerald-400 rounded-3xl max-w-sm w-full p-7 text-center shadow-2xl transform transition-all">
+      <div id="clockConfirmIcon" class="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-400 text-emerald-400 flex items-center justify-center mx-auto mb-4 text-3xl font-extrabold">
+        &#10003;
+      </div>
+      <div id="clockConfirmTitle" class="text-xl font-extrabold text-white tracking-wide uppercase">
+        ENTRATA CONFERMATA
+      </div>
+      <div id="clockConfirmSub" class="text-sm text-zinc-300 font-semibold mt-2"></div>
+      <div id="clockConfirmTime" class="text-2xl font-mono font-extrabold text-emerald-400 mt-2"></div>
+      <button type="button" onclick="closeClockConfirmModal()" class="mt-6 w-full py-3 rounded-xl bg-white text-black font-extrabold text-xs uppercase tracking-wider">
+        OK
+      </button>
+    </div>
+  </div>
+
   <!-- TOAST NOTIFICATION -->
   <div id="toast" class="fixed bottom-5 right-5 z-50 hidden max-w-sm bg-white text-black px-4 py-3 rounded-xl shadow-2xl border border-zinc-300 text-sm font-bold transition-all"></div>
 
@@ -335,6 +352,102 @@
     } catch (e) {}
 
     // =========================================================================
+    // AUDIO BIP & CONFERMA VISIVA SCANSIONE QR
+    // =========================================================================
+    let sharedAudioCtx = null;
+
+    function unlockAudioContext() {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        if (!sharedAudioCtx) {
+          sharedAudioCtx = new AudioCtx();
+        }
+        if (sharedAudioCtx.state === 'suspended') {
+          sharedAudioCtx.resume();
+        }
+      } catch (e) {}
+    }
+
+    function playScanConfirmBeep() {
+      try {
+        unlockAudioContext();
+        if (!sharedAudioCtx) return;
+        const now = sharedAudioCtx.currentTime;
+
+        const osc1 = sharedAudioCtx.createOscillator();
+        const gain1 = sharedAudioCtx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(1046.5, now);
+        gain1.gain.setValueAtTime(0.25, now);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+        osc1.connect(gain1);
+        gain1.connect(sharedAudioCtx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.14);
+
+        const osc2 = sharedAudioCtx.createOscillator();
+        const gain2 = sharedAudioCtx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(1318.5, now + 0.15);
+        gain2.gain.setValueAtTime(0.28, now + 0.15);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.36);
+        osc2.connect(gain2);
+        gain2.connect(sharedAudioCtx.destination);
+        osc2.start(now + 0.15);
+        osc2.stop(now + 0.36);
+      } catch (e) {}
+    }
+
+    function getConfirmBannerText(actionCode) {
+      if (actionCode === 'ENTRATA') return 'ENTRATA CONFERMATA';
+      if (actionCode === 'USCITA') return 'USCITA CONFERMATA';
+      if (actionCode === 'INIZIO_PAUSA') return 'USCITA PAUSA CONFERMATA';
+      if (actionCode === 'FINE_PAUSA') return 'ENTRATA PAUSA CONFERMATA';
+      return 'TIMBRATURA CONFERMATA';
+    }
+
+    function showClockConfirmationModal(actionCode, operatorName, isoTime) {
+      const modal = document.getElementById('clockConfirmModal');
+      const card = document.getElementById('clockConfirmCard');
+      const icon = document.getElementById('clockConfirmIcon');
+      const title = document.getElementById('clockConfirmTitle');
+      const sub = document.getElementById('clockConfirmSub');
+      const timeEl = document.getElementById('clockConfirmTime');
+
+      if (!modal) return;
+
+      const isPause = (actionCode === 'INIZIO_PAUSA');
+      card.className = isPause
+        ? 'bg-zinc-950 border-2 border-amber-400 rounded-3xl max-w-sm w-full p-7 text-center shadow-2xl transform transition-all'
+        : 'bg-zinc-950 border-2 border-emerald-400 rounded-3xl max-w-sm w-full p-7 text-center shadow-2xl transform transition-all';
+
+      icon.className = isPause
+        ? 'w-16 h-16 rounded-full bg-amber-500/20 border-2 border-amber-400 text-amber-400 flex items-center justify-center mx-auto mb-4 text-3xl font-extrabold'
+        : 'w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-400 text-emerald-400 flex items-center justify-center mx-auto mb-4 text-3xl font-extrabold';
+
+      timeEl.className = isPause
+        ? 'text-2xl font-mono font-extrabold text-amber-400 mt-2'
+        : 'text-2xl font-mono font-extrabold text-emerald-400 mt-2';
+
+      title.textContent = getConfirmBannerText(actionCode);
+      sub.textContent = operatorName || '';
+      timeEl.textContent = formatTimeOnly(isoTime || new Date().toISOString());
+
+      modal.classList.remove('hidden');
+
+      clearTimeout(window._confirmModalTimer);
+      window._confirmModalTimer = setTimeout(function () {
+        closeClockConfirmModal();
+      }, 4000);
+    }
+
+    function closeClockConfirmModal() {
+      const modal = document.getElementById('clockConfirmModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    // =========================================================================
     // CALCOLO DISTANZA GPS (FORMULA DI HAVERSINE IN METRI)
     // =========================================================================
     function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
@@ -350,7 +463,6 @@
     }
 
     function getActiveHqCoords() {
-      // Cerca anche eventuale record speciale in permessi/config o usa localStorage
       const cfg = state.permessi.find(function (p) { return p.tipologia === '__HQ_GPS_CONFIG__'; });
       if (cfg && cfg.note && cfg.note.includes(',')) {
         const parts = cfg.note.split(',');
@@ -929,6 +1041,8 @@
     }
 
     function startQrClock(actionCode) {
+      unlockAudioContext();
+
       const wrapper = document.getElementById('qrScannerWrapper');
       const title = document.getElementById('qrScannerTitle');
       title.textContent = 'Inquadra QR per ' + getActionTitle(actionCode).toUpperCase();
@@ -940,13 +1054,22 @@
 
       const scanner = new Html5Qrcode('qrReaderBox');
       state.html5QrScanner = scanner;
+      let scanLocked = false;
 
       scanner.start(
         { facingMode: 'environment' },
         { fps: 10, qrbox: { width: 220, height: 220 } },
         async function (decodedText) {
+          if (scanLocked) return;
           if (decodedText && decodedText.startsWith('LOGITRACK_QR_')) {
-            await scanner.stop();
+            scanLocked = true;
+
+            playScanConfirmBeep();
+            if (navigator.vibrate) {
+              try { navigator.vibrate([120, 60, 120]); } catch (e) {}
+            }
+
+            await scanner.stop().catch(function () {});
             state.html5QrScanner = null;
             wrapper.classList.add('hidden');
             await saveTimbratura(actionCode, 'QR_DINAMICO', null, null, 'Terminale Magazzino');
@@ -968,6 +1091,8 @@
     }
 
     function clockWithGps(actionCode) {
+      unlockAudioContext();
+
       if (!state.operatorSession || !state.operatorSession.abilitato_gps) {
         showToast('Timbratura GPS disabilitata per questo profilo.', true);
         return;
@@ -993,6 +1118,7 @@
             return;
           }
 
+          playScanConfirmBeep();
           await saveTimbratura(actionCode, 'GPS', lat, lng, 'GPS Sede (' + distMeters + 'm)');
         },
         function (err) {
@@ -1008,6 +1134,9 @@
 
     async function saveTimbratura(actionCode, metodo, lat, lng, indirizzo, customIsoTime) {
       if (!state.operatorSession || !supabaseClient) return;
+
+      const finalIsoTime = customIsoTime || new Date().toISOString();
+      const operatorName = state.operatorSession.nome_completo || '';
 
       let dbTipo = 'Entrata';
       let tagIndirizzo = indirizzo || '';
@@ -1027,7 +1156,7 @@
         operatore_id: state.operatorSession.id,
         tipo: dbTipo,
         metodo: metodo,
-        orario: customIsoTime || new Date().toISOString(),
+        orario: finalIsoTime,
         latitudine: lat,
         longitudine: lng,
         indirizzo_rilevato: tagIndirizzo.trim(),
@@ -1059,7 +1188,10 @@
 
       await loadAllData();
       renderOperatorView();
-      showToast(getActionTitle(actionCode) + ' registrata correttamente!');
+
+      const confirmLabel = getConfirmBannerText(actionCode);
+      showClockConfirmationModal(actionCode, operatorName, finalIsoTime);
+      showToast(confirmLabel);
     }
 
     async function submitLeaveRequest(e) {
@@ -1972,7 +2104,6 @@
       state.hqCoords = { lat: lat, lng: lng };
       localStorage.setItem(STORAGE_HQ_COORDS, JSON.stringify(state.hqCoords));
 
-      // Salva anche su Supabase cosi tutti gli smartphone degli operatori la leggono
       if (supabaseClient && state.operatori.length > 0) {
         const existing = state.permessi.find(function (p) { return p.tipologia === '__HQ_GPS_CONFIG__'; });
         const nowIso = new Date().toISOString();
