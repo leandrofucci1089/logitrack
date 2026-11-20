@@ -391,12 +391,18 @@
    function getScopedOperatori() {
       const ctx = getAdminContext();
       if (!ctx.isSuperAdmin && ctx.coop) {
+        const coopName = String(ctx.coop.nome || '').trim().toUpperCase();
         return state.operatori.filter(function (o) {
-          return o.cooperativa_id === ctx.coop.id;
+          if (o.cooperativa_id && o.cooperativa_id === ctx.coop.id) return true;
+          const opCoop = String(o.nome_cooperativa || '').trim().toUpperCase();
+          if (!opCoop) return false; // Esclude i NULL (tuoi diretti)
+          if (coopName.includes('CS') && opCoop.includes('CS')) return true;
+          if (coopName.includes('MG') && opCoop.includes('MG')) return true;
+          return opCoop === coopName;
         });
       }
       return state.operatori;
-    } 
+    }
 
     function getScopedTimbrature() {
       const allowedIds = new Set(getScopedOperatori().map(function (o) { return o.id; }));
