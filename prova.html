@@ -3058,11 +3058,9 @@
       const inquadramento = document.getElementById('edit-op-inquadramento').value;
       const coopId = inquadramento === 'Cooperativa' ? document.getElementById('edit-op-coop').value : null;
       const coopObj = coopId ? (state.cooperative || []).find(function (c) { return c.id === coopId; }) : null;
-
-      const payload = {
+const payload = {
         nome_completo: document.getElementById('edit-op-nome').value.trim(),
         codice_operatore: document.getElementById('edit-op-codice').value.trim(),
-        pin: document.getElementById('edit-op-pin').value.trim(),
         email: document.getElementById('edit-op-email').value.trim() || null,
         inquadramento: inquadramento,
         cooperativa_id: coopId,
@@ -3070,6 +3068,7 @@
         sede_lavoro: document.getElementById('edit-op-sede').value.trim().toUpperCase() || 'CANDIDA',
         ore_giornaliere: parseFloat(document.getElementById('edit-op-ore').value) || 8
       };
+      
 
       const { error } = await supabaseClient.from('operatori').update(payload).eq('id', id);
       if (error) {
