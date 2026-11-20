@@ -1,0 +1,3033 @@
+<!DOCTYPE html>
+<html lang="it" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="LogiTrack" />
+  <title>LogiTrack Presenze (by Leandro Logistics Department)</title>
+
+  <link id="dynamicFavicon" rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' rx='28' fill='%23050507'/%3E%3Ccircle cx='64' cy='64' r='50' fill='none' stroke='%23ffffff' stroke-width='8'/%3E%3Ctext x='64' y='82' font-family='Arial,sans-serif' font-size='56' font-weight='900' fill='%23ffffff' text-anchor='middle'%3EL%3C/text%3E%3C/svg%3E" />
+  <link id="dynamicAppleIcon" rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' rx='28' fill='%23050507'/%3E%3Ccircle cx='64' cy='64' r='50' fill='none' stroke='%23ffffff' stroke-width='8'/%3E%3Ctext x='64' y='82' font-family='Arial,sans-serif' font-size='56' font-weight='900' fill='%23ffffff' text-anchor='middle'%3EL%3C/text%3E%3C/svg%3E" />
+  <meta property="og:title" content="LogiTrack Presenze (by Leandro Logistics Department)" />
+  <meta property="og:description" content="Sistema aziendale rilevazione presenze, pause e turni magazzino." />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #050507;
+      color: #f4f4f5;
+      margin: 0;
+      padding: 0;
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #09090b; }
+    ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-white selection:text-black">
+
+  <!-- TOP NAVIGATION BAR -->
+  <header class="bg-[#050507]/90 backdrop-blur-md border-b border-zinc-800 sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <!-- LOGO L (5 CLIC RAPIDI APRONO MENU SEGRETO DISPOSITIVO) -->
+        <button id="secretLogoBtn" type="button" title="LogiTrack Presenze" class="w-10 h-10 rounded-full bg-zinc-950 border-2 border-white flex items-center justify-center text-white font-extrabold text-lg select-none cursor-pointer active:scale-95 transition-transform overflow-hidden shrink-0">
+          <img id="headerCustomLogo" src="logo.png" alt="L" class="w-full h-full object-cover hidden" onload="applyCustomPngLogo()" onerror="this.remove()" />
+          <span id="headerFallbackLetter">L</span>
+        </button>
+        <div>
+          <div class="font-bold text-white text-base leading-tight tracking-tight flex flex-wrap items-baseline gap-x-1.5">
+            <span>LogiTrack Presenze</span>
+            <span class="text-[11px] font-normal text-zinc-400">(by Leandro Logistics Department)</span>
+          </div>
+          <div id="cloudStatus" class="flex items-center gap-1.5 text-xs text-amber-400 font-medium mt-0.5">
+            <span id="cloudDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+            <span id="cloudText">Connessione Cloud...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- PULSANTI NAVIGAZIONE (VISIBILI SOLO SE IL DISPOSITIVO E' SBLOCCATO IN MODALITA ADMIN) -->
+      <nav id="adminNavBar" class="hidden items-center gap-2">
+        <button onclick="switchView('operator')" id="nav-operator" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800">
+          Area Operatore
+        </button>
+        <button onclick="switchView('kiosk')" id="nav-kiosk" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800">
+          Terminale QR
+        </button>
+        <button onclick="switchView('admin')" id="nav-admin" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors bg-white text-black border border-white">
+          Dashboard Admin
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- MODALE CONFIGURAZIONE DISPOSITIVO (5 CLIC SUL LOGO L) -->
+  <div id="deviceSetupModal" class="fixed inset-0 z-50 hidden bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-zinc-950 border border-zinc-800 rounded-2xl max-w-md w-full p-6 shadow-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-white">Configura Questo Dispositivo</h3>
+        <button onclick="closeDeviceModal()" class="text-zinc-400 hover:text-white text-xl leading-none">&times;</button>
+      </div>
+      <p class="text-xs text-zinc-400 mb-5 leading-relaxed">
+        Scegli la modalita permanente per questo computer o smartphone. La scelta resta salvata anche ricaricando la pagina.
+      </p>
+      <div class="space-y-3">
+        <button onclick="setDeviceMode('operator')" class="w-full text-left p-3.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 transition-colors flex items-center justify-between">
+          <div>
+            <div class="text-sm font-bold text-white">Accesso Operatore (Default)</div>
+            <div class="text-xs text-zinc-400">Schermata blindata per i dipendenti senza menu admin</div>
+          </div>
+          <span class="text-zinc-400 text-sm">&rarr;</span>
+        </button>
+        <button onclick="setDeviceMode('kiosk')" class="w-full text-left p-3.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 transition-colors flex items-center justify-between">
+          <div>
+            <div class="text-sm font-bold text-white">Terminale QR Magazzino / Sede</div>
+            <div class="text-xs text-zinc-400">Schermo fisso con codice QR dinamico per entrata/uscita</div>
+          </div>
+          <span class="text-zinc-400 text-sm">&rarr;</span>
+        </button>
+        <button onclick="setDeviceMode('admin')" class="w-full text-left p-3.5 rounded-xl bg-white text-black hover:bg-zinc-200 transition-colors flex items-center justify-between">
+          <div>
+            <div class="text-sm font-bold text-black">Dashboard Amministratore / Cooperativa</div>
+            <div class="text-xs text-zinc-700">Gestione completa turni, operatori, permessi ed export</div>
+          </div>
+          <span class="text-black font-bold text-sm">&rarr;</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODALE MODIFICA / AGGIUNTA TIMBRATURA (SOLO ADMIN) -->
+  <div id="editTimbModal" class="fixed inset-0 z-50 hidden bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-zinc-950 border border-zinc-800 rounded-2xl max-w-md w-full p-6 shadow-2xl">
+      <div class="flex items-center justify-between mb-3">
+        <div>
+          <h3 id="editTimbModalTitle" class="text-lg font-bold text-white">Modifica Timbratura</h3>
+          <p id="editTimbModalSubtitle" class="text-xs text-zinc-400 mt-0.5"></p>
+        </div>
+        <button onclick="closeEditTimbModal()" class="text-zinc-400 hover:text-white text-xl leading-none">&times;</button>
+      </div>
+
+      <form onsubmit="saveEditedTimbratura(event)" class="space-y-4 text-xs mt-4">
+        <input type="hidden" id="editTimbId" />
+        <input type="hidden" id="editTimbOpId" />
+        <input type="hidden" id="editTimbDateKey" />
+        <input type="hidden" id="editTimbCategory" />
+
+        <div>
+          <label class="block text-zinc-400 font-semibold mb-1">Tipologia Evento</label>
+          <select id="editTimbCatSelect" class="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-bold">
+            <option value="ENTRATA">Entrata</option>
+            <option value="INIZIO_PAUSA">Uscita Pausa</option>
+            <option value="FINE_PAUSA">Entrata Pausa (Rientro)</option>
+            <option value="USCITA">Uscita Fine Turno</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-zinc-400 font-semibold mb-1">Orario (HH:MM)</label>
+            <input id="editTimbTimeInput" type="time" required class="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono text-sm font-bold" />
+          </div>
+          <div>
+            <label class="block text-zinc-400 font-semibold mb-1">Metodo</label>
+            <select id="editTimbMetodoSelect" class="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-semibold">
+              <option value="QR_DINAMICO">QR Magazzino (Manuale Admin)</option>
+              <option value="GPS">GPS Mobile</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between gap-2 pt-3 border-t border-zinc-800">
+          <button type="button" id="editTimbDeleteBtn" onclick="deleteCurrentEditedTimbratura()" class="px-3.5 py-2.5 rounded-xl bg-red-600/20 hover:bg-red-600/30 border border-red-500/40 text-red-300 font-bold">
+            Elimina
+          </button>
+          <div class="flex items-center gap-2 ml-auto">
+            <button type="button" onclick="closeEditTimbModal()" class="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-bold">
+              Annulla
+            </button>
+            <button type="submit" class="px-4 py-2.5 rounded-xl bg-white hover:bg-zinc-200 text-black font-extrabold">
+              Salva Modifica
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODALE INVIO EMAIL CREDENZIALI -->
+  <div id="emailModal" class="fixed inset-0 z-50 hidden bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-zinc-950 border border-zinc-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl">
+      <div class="flex items-center justify-between mb-3">
+        <div>
+          <h3 class="text-lg font-bold text-white">Invia Credenziali via Email</h3>
+          <p class="text-xs text-zinc-400 mt-0.5">Mittente configurato: <strong id="emailModalSenderLabel" class="text-white">leandrofucci@candida.it</strong></p>
+        </div>
+        <button onclick="closeEmailModal()" class="text-zinc-400 hover:text-white text-xl leading-none">&times;</button>
+      </div>
+
+      <div class="space-y-3 text-xs mt-4">
+        <div>
+          <label class="block text-zinc-400 font-semibold mb-1">Email Destinatario (Operatore)</label>
+          <input id="emailModalTo" type="email" placeholder="nome.cognome@dominio.it" class="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-medium focus:outline-none focus:border-white" />
+        </div>
+        <div>
+          <label class="block text-zinc-400 font-semibold mb-1">Oggetto Email</label>
+          <input id="emailModalSubject" type="text" class="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-medium focus:outline-none focus:border-white" />
+        </div>
+        <div>
+          <label class="block text-zinc-400 font-semibold mb-1">Testo del Messaggio</label>
+          <textarea id="emailModalBody" rows="7" class="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono text-[11px] leading-relaxed focus:outline-none focus:border-white"></textarea>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-5">
+        <button type="button" onclick="openMailtoClient()" class="py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-colors">
+          Apri App Posta (Outlook / Mail)
+        </button>
+        <button type="button" onclick="copyEmailAndSave()" class="py-3 px-4 rounded-xl bg-white hover:bg-zinc-200 text-black font-bold text-xs transition-colors">
+          Copia Testo (per Webmail)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BANNER CONFERMA TIMBRATURA (QR / GPS) -->
+  <div id="clockConfirmModal" onclick="closeClockConfirmModal()" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div id="clockConfirmCard" class="bg-zinc-950 border-2 border-emerald-400 rounded-3xl max-w-sm w-full p-7 text-center shadow-2xl transform transition-all">
+      <div id="clockConfirmIcon" class="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-400 text-emerald-400 flex items-center justify-center mx-auto mb-4 text-3xl font-extrabold">
+        &#10003;
+      </div>
+      <div id="clockConfirmTitle" class="text-xl font-extrabold text-white tracking-wide uppercase">
+        ENTRATA CONFERMATA
+      </div>
+      <div id="clockConfirmSub" class="text-sm text-zinc-300 font-semibold mt-2"></div>
+      <div id="clockConfirmTime" class="text-2xl font-mono font-extrabold text-emerald-400 mt-2"></div>
+      <button type="button" onclick="closeClockConfirmModal()" class="mt-6 w-full py-3 rounded-xl bg-white text-black font-extrabold text-xs uppercase tracking-wider">
+        OK
+      </button>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 hidden max-w-sm bg-white text-black px-4 py-3 rounded-xl shadow-2xl border border-zinc-300 text-sm font-bold transition-all"></div>
+
+  <!-- MAIN CONTAINER -->
+  <main id="appContainer" class="flex-1 max-w-7xl w-full mx-auto px-4 py-6">
+    <div class="flex items-center justify-center py-20 text-zinc-400 text-sm">
+      Inizializzazione sistema in corso...
+    </div>
+  </main>
+
+  <script>
+    function applyCustomPngLogo() {
+      const img = document.getElementById('headerCustomLogo');
+      const letter = document.getElementById('headerFallbackLetter');
+      if (img) img.classList.remove('hidden');
+      if (letter) letter.classList.add('hidden');
+      const fav = document.getElementById('dynamicFavicon');
+      const apple = document.getElementById('dynamicAppleIcon');
+      if (fav) { fav.type = 'image/png'; fav.href = 'logo.png'; }
+      if (apple) { apple.href = 'logo.png'; }
+    }
+
+    // =========================================================================
+    // CONFIGURAZIONE SUPABASE, SUPER ADMIN, SEDE GPS & MITTENTE EMAIL
+    // =========================================================================
+    const SUPABASE_URL = 'https://mhnrsznxrohpgjelunjj.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_n9iHkNj__gNVlihuhlMETw_O7_UxMab';
+    const SUPER_ADMIN_EMAIL = 'leandrofucci1089@gmail.com';
+    const ADMIN_SENDER_EMAIL = 'leandrofucci@candida.it';
+    const MAX_GPS_RADIUS_METERS = 50;
+
+    const PRELOADED_EMAILS_BY_NAME = {
+      "giuseppe addeo": "giuseppead89@gmail.com",
+      "addeo giuseppe": "giuseppead89@gmail.com",
+      "carlo cecere": "carlocecere35@gmail.com",
+      "cecere carlo": "carlocecere35@gmail.com",
+      "giovanni del prete": "mistergiov80@gmail.com",
+      "del prete giovanni": "mistergiov80@gmail.com",
+      "antimo verde": "verdeantimo97@gmail.com",
+      "verde antimo": "verdeantimo97@gmail.com",
+      "vincenzo martone": "vinsmartone@gmail.com",
+      "martone vincenzo": "vinsmartone@gmail.com",
+      "mario iovinella": "marioiovinella1993@gmail.com",
+      "iovinella mario": "marioiovinella1993@gmail.com",
+      "elia garardo": "eliagarardo86@gmail.com",
+      "garardo elia": "eliagarardo86@gmail.com",
+      "beata madra": "bea80.madra@gmail.com",
+      "madra beata": "bea80.madra@gmail.com",
+      "angela martone": "angelamartone@candida.it",
+      "martone angela": "angelamartone@candida.it",
+      "antonio di somma": "antoniodisomma15@icloud.com",
+      "di somma antonio": "antoniodisomma15@icloud.com",
+      "luigi odore": "luigiodore98@gmail.com",
+      "odore luigi": "luigiodore98@gmail.com",
+      "alketa xhepa": "alketaxhepa0@gmail.com",
+      "xhepa alketa": "alketaxhepa0@gmail.com",
+      "umberto de sena": "umby.ds@live.it",
+      "de sena umberto": "umby.ds@live.it",
+      "raffaele brancaccio": "lellobrancaccio71@libero.it",
+      "brancaccio raffaele": "lellobrancaccio71@libero.it",
+      "maria grazia verdicchio": "mg.verdicchio12@gmail.com",
+      "verdicchio maria grazia": "mg.verdicchio12@gmail.com",
+      "luigi verdicchio": "luigiverdicchio.97@hotmail.it",
+      "verdicchio luigi": "luigiverdicchio.97@hotmail.it",
+      "domenico buonomo": "acamporamarianna4@gmail.com",
+      "buonomo domenico": "acamporamarianna4@gmail.com",
+      "giovanna morgillo": "Giovannamorgillo06@gmail.com",
+      "morgillo giovanna": "Giovannamorgillo06@gmail.com",
+      "leandro fucci": "leandrofucci@candida.it",
+      "fucci leandro": "leandrofucci@candida.it"
+    };
+
+    let supabaseClient = null;
+    try {
+      if (window.supabase && typeof window.supabase.createClient === 'function') {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      }
+    } catch (err) {
+      console.error('Errore init Supabase:', err);
+    }
+
+    // =========================================================================
+    // STATO APPLICAZIONE E STORAGE LOCALE
+    // =========================================================================
+    const STORAGE_DEVICE_MODE = 'logitrack_device_mode_v2';
+    const STORAGE_OPERATOR_SESSION = 'logitrack_operator_session_v2';
+    const STORAGE_OP_EMAILS = 'logitrack_operator_emails_v1';
+    const STORAGE_HQ_COORDS = 'logitrack_hq_coords_v1';
+
+    let savedEmailsMap = {};
+    try {
+      savedEmailsMap = JSON.parse(localStorage.getItem(STORAGE_OP_EMAILS) || '{}');
+    } catch (e) {}
+
+    let savedHqCoords = { lat: '', lng: '' };
+    try {
+      const parsedHq = JSON.parse(localStorage.getItem(STORAGE_HQ_COORDS) || '{}');
+      if (parsedHq && parsedHq.lat && parsedHq.lng) savedHqCoords = parsedHq;
+    } catch (e) {}
+
+    function getTodayLocalDateKey() {
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    let state = {
+      deviceMode: localStorage.getItem(STORAGE_DEVICE_MODE) || 'operator',
+      currentView: localStorage.getItem(STORAGE_DEVICE_MODE) || 'operator',
+      operatorSession: null,
+      adminSession: null,
+      adminTab: 'live',
+      liveFilterDate: getTodayLocalDateKey(),
+      presenzeFilterDate: getTodayLocalDateKey(),
+      permessiSubTab: 'da_approvare',
+      reportSubTab: 'riepilogo',
+      selectedMonth: new Date().toISOString().slice(0, 7),
+      reportFilterOpId: 'ALL',
+      hqCoords: savedHqCoords,
+      cooperative: [],
+      operatori: [],
+      timbrature: [],
+      permessi: [],
+      qrTimer: null,
+      html5QrScanner: null,
+      activeEmailOpId: null,
+      lastAlertMinute: ''
+    };
+
+    try {
+      const savedOp = localStorage.getItem(STORAGE_OPERATOR_SESSION);
+      if (savedOp) state.operatorSession = JSON.parse(savedOp);
+    } catch (e) {}
+
+    // =========================================================================
+    // GESTIONE RUOLI MULTI-TENANT (SUPER ADMIN VS ADMIN COOPERATIVA)
+    // =========================================================================
+    function getAdminContext() {
+      if (!state.adminSession || !state.adminSession.user) {
+        return { isSuperAdmin: false, coop: null, email: '' };
+      }
+      const email = String(state.adminSession.user.email || '').trim().toLowerCase();
+      if (email === SUPER_ADMIN_EMAIL.toLowerCase()) {
+        return { isSuperAdmin: true, coop: null, email: email };
+      }
+      const matchedCoop = state.cooperative.find(function (c) {
+        return String(c.email_admin || '').trim().toLowerCase() === email;
+      });
+      if (matchedCoop) {
+        return { isSuperAdmin: false, coop: matchedCoop, email: email };
+      }
+      // Fallback sicuro: se l'utente autenticato non è in cooperative, mantiene l'accesso classico
+      return { isSuperAdmin: true, coop: null, email: email };
+    }
+
+    function isCoopSubscriptionValid(coop) {
+      if (!coop) return true;
+      const stato = String(coop.stato_abbonamento || 'ATTIVO').toUpperCase();
+      if (stato === 'SCADUTO' || stato === 'SOSPESO') return false;
+      if (coop.data_scadenza) {
+        const todayStr = getTodayLocalDateKey();
+        if (todayStr > String(coop.data_scadenza).slice(0, 10)) return false;
+      }
+      return true;
+    }
+
+    // Restituisce gli operatori visibili all'admin loggato:
+    // - Admin Cooperativa: vede TUTTI i suoi dipendenti (sia su CANDIDA sia su altri clienti)
+    // - Super Admin (leandrofucci1089@gmail.com): vede i suoi dipendenti diretti + i lavoratori delle cooperative assegnati a CANDIDA
+    function getScopedOperatori() {
+      const ctx = getAdminContext();
+      if (!ctx.isSuperAdmin && ctx.coop) {
+        return state.operatori.filter(function (o) {
+          return o.cooperativa_id === ctx.coop.id;
+        });
+      }
+      return state.operatori.filter(function (o) {
+        if (!o.cooperativa_id) return true;
+        const sede = String(o.sede_lavoro || 'CANDIDA').trim().toUpperCase();
+        return sede === 'CANDIDA' || sede === '' || sede === 'SEDE PRINCIPALE';
+      });
+    }
+
+    function getScopedTimbrature() {
+      const allowedIds = new Set(getScopedOperatori().map(function (o) { return o.id; }));
+      return state.timbrature.filter(function (t) { return allowedIds.has(t.operatore_id); });
+    }
+
+    function getScopedPermessi() {
+      const allowedIds = new Set(getScopedOperatori().map(function (o) { return o.id; }));
+      return state.permessi.filter(function (p) {
+        if (p.tipologia === '__HQ_GPS_CONFIG__') return true;
+        return allowedIds.has(p.operatore_id);
+      });
+    }
+
+    // =========================================================================
+    // AUDIO BIP & CONFERMA VISIVA SCANSIONE QR
+    // =========================================================================
+    let sharedAudioCtx = null;
+
+    function unlockAudioContext() {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        if (!sharedAudioCtx) {
+          sharedAudioCtx = new AudioCtx();
+        }
+        if (sharedAudioCtx.state === 'suspended') {
+          sharedAudioCtx.resume();
+        }
+      } catch (e) {}
+    }
+
+    function playScanConfirmBeep() {
+      try {
+        unlockAudioContext();
+        if (!sharedAudioCtx) return;
+        const now = sharedAudioCtx.currentTime;
+
+        const osc1 = sharedAudioCtx.createOscillator();
+        const gain1 = sharedAudioCtx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(1046.5, now);
+        gain1.gain.setValueAtTime(0.25, now);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+        osc1.connect(gain1);
+        gain1.connect(sharedAudioCtx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.14);
+
+        const osc2 = sharedAudioCtx.createOscillator();
+        const gain2 = sharedAudioCtx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(1318.5, now + 0.15);
+        gain2.gain.setValueAtTime(0.28, now + 0.15);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.36);
+        osc2.connect(gain2);
+        gain2.connect(sharedAudioCtx.destination);
+        osc2.start(now + 0.15);
+        osc2.stop(now + 0.36);
+      } catch (e) {}
+    }
+
+    function getConfirmBannerText(actionCode) {
+      if (actionCode === 'ENTRATA') return 'ENTRATA CONFERMATA';
+      if (actionCode === 'USCITA') return 'USCITA CONFERMATA';
+      if (actionCode === 'INIZIO_PAUSA') return 'USCITA PAUSA CONFERMATA';
+      if (actionCode === 'FINE_PAUSA') return 'ENTRATA PAUSA CONFERMATA';
+      return 'TIMBRATURA CONFERMATA';
+    }
+
+    function showClockConfirmationModal(actionCode, operatorName, isoTime) {
+      const modal = document.getElementById('clockConfirmModal');
+      const card = document.getElementById('clockConfirmCard');
+      const icon = document.getElementById('clockConfirmIcon');
+      const title = document.getElementById('clockConfirmTitle');
+      const sub = document.getElementById('clockConfirmSub');
+      const timeEl = document.getElementById('clockConfirmTime');
+
+      if (!modal) return;
+
+      const isPause = (actionCode === 'INIZIO_PAUSA');
+      card.className = isPause
+        ? 'bg-zinc-950 border-2 border-amber-400 rounded-3xl max-w-sm w-full p-7 text-center shadow-2xl transform transition-all'
+        : 'bg-zinc-950 border-2 border-emerald-400 rounded-3xl max-w-sm w-full p-7 text-center shadow-2xl transform transition-all';
+
+      icon.className = isPause
+        ? 'w-16 h-16 rounded-full bg-amber-500/20 border-2 border-amber-400 text-amber-400 flex items-center justify-center mx-auto mb-4 text-3xl font-extrabold'
+        : 'w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-400 text-emerald-400 flex items-center justify-center mx-auto mb-4 text-3xl font-extrabold';
+
+      timeEl.className = isPause
+        ? 'text-2xl font-mono font-extrabold text-amber-400 mt-2'
+        : 'text-2xl font-mono font-extrabold text-emerald-400 mt-2';
+
+      title.textContent = getConfirmBannerText(actionCode);
+      sub.textContent = operatorName || '';
+      timeEl.textContent = formatTimeOnly(isoTime || new Date().toISOString());
+
+      modal.classList.remove('hidden');
+
+      clearTimeout(window._confirmModalTimer);
+      window._confirmModalTimer = setTimeout(function () {
+        closeClockConfirmModal();
+      }, 4000);
+    }
+
+    function closeClockConfirmModal() {
+      const modal = document.getElementById('clockConfirmModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    // =========================================================================
+    // CALCOLO DISTANZA GPS (FORMULA DI HAVERSINE IN METRI)
+    // =========================================================================
+    function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const toRad = function (deg) { return deg * Math.PI / 180; };
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    function getActiveHqCoords() {
+      // Se l'admin loggato è una cooperativa con sue coordinate impostate, usa quelle
+      const ctx = getAdminContext();
+      if (!ctx.isSuperAdmin && ctx.coop && ctx.coop.hq_lat && ctx.coop.hq_lng) {
+        return { lat: Number(ctx.coop.hq_lat), lng: Number(ctx.coop.hq_lng) };
+      }
+
+      // Se un operatore di cooperativa timbra con GPS e la cooperativa ha proprie coordinate (sede esterna), controlla quelle
+      if (state.operatorSession && state.operatorSession.cooperativa_id) {
+        const opCoop = state.cooperative.find(function (c) { return c.id === state.operatorSession.cooperativa_id; });
+        const sedeOp = String(state.operatorSession.sede_lavoro || 'CANDIDA').toUpperCase();
+        if (opCoop && opCoop.hq_lat && opCoop.hq_lng && sedeOp !== 'CANDIDA') {
+          return { lat: Number(opCoop.hq_lat), lng: Number(opCoop.hq_lng) };
+        }
+      }
+
+      const cfg = state.permessi.find(function (p) { return p.tipologia === '__HQ_GPS_CONFIG__'; });
+      if (cfg && cfg.note && cfg.note.includes(',')) {
+        const parts = cfg.note.split(',');
+        const lat = parseFloat(parts[0]);
+        const lng = parseFloat(parts[1]);
+        if (!isNaN(lat) && !isNaN(lng)) return { lat: lat, lng: lng };
+      }
+      if (state.hqCoords && state.hqCoords.lat !== '' && state.hqCoords.lng !== '') {
+        const lat = parseFloat(state.hqCoords.lat);
+        const lng = parseFloat(state.hqCoords.lng);
+        if (!isNaN(lat) && !isNaN(lng)) return { lat: lat, lng: lng };
+      }
+      return null;
+    }
+
+    // =========================================================================
+    // HELPER CLASSIFICAZIONE TIMBRATURE & LOCALIZZAZIONE
+    // =========================================================================
+    function classifyEvent(t) {
+      if (!t) return 'USCITA';
+      const tipoRaw = String(t.tipo || '').trim().toLowerCase();
+      const indRaw = String(t.indirizzo_rilevato || '').trim().toLowerCase();
+
+      if (tipoRaw.includes('inizio pausa') || tipoRaw.includes('uscita pausa') || indRaw.includes('[inizio_pausa]')) {
+        return 'INIZIO_PAUSA';
+      }
+      if (tipoRaw.includes('fine pausa') || tipoRaw.includes('rientro pausa') || indRaw.includes('[fine_pausa]')) {
+        return 'FINE_PAUSA';
+      }
+      if (tipoRaw === 'entrata' || tipoRaw === 'ingresso') {
+        return 'ENTRATA';
+      }
+      return 'USCITA';
+    }
+
+    function getDisplayEventLabel(t) {
+      const cat = classifyEvent(t);
+      if (cat === 'INIZIO_PAUSA') return 'Uscita Pausa';
+      if (cat === 'FINE_PAUSA') return 'Entrata Pausa';
+      if (cat === 'ENTRATA') return 'Entrata';
+      return 'Uscita';
+    }
+
+    function formatMetodoLabel(metodo) {
+      if (metodo === 'QR_DINAMICO' || metodo === 'QR' || metodo === 'QR_CODE' || metodo === 'Sede') return 'QR Magazzino';
+      if (metodo === 'GPS' || metodo === 'GPS_MOBILE' || metodo === 'POSIZIONE' || metodo === 'Esterno') return 'GPS';
+      return metodo || '-';
+    }
+
+    function renderLocationCompactHtml(t) {
+      if (!t) return '';
+      if (t.latitudine !== null && t.latitudine !== undefined && t.longitudine !== null && t.longitudine !== undefined) {
+        const lat = Number(t.latitudine);
+        const lng = Number(t.longitudine);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          const mapsUrl = 'https://www.google.com/maps?q=' + lat + ',' + lng;
+          return `<a href="${mapsUrl}" target="_blank" rel="noopener noreferrer" class="text-[10px] text-blue-400 hover:text-blue-300 underline block mt-0.5">Mappa GPS</a>`;
+        }
+      }
+      return `<span class="text-[10px] text-zinc-500 block mt-0.5">${escapeHtml(formatMetodoLabel(t.metodo))}</span>`;
+    }
+
+    function getLocalDayKey(isoString) {
+      const d = new Date(isoString);
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    function formatDayKeyItalian(dayKey) {
+      if (!dayKey || !dayKey.includes('-')) return dayKey || '';
+      const parts = dayKey.split('-');
+      return parts[2] + '/' + parts[1] + '/' + parts[0];
+    }
+
+    // =========================================================================
+    // CONTROLLO AUTOMATICO AVVISO PAUSA ALLE 13:30 E RIENTRO PAUSA (> 60 MIN)
+    // =========================================================================
+    function getOperatorShiftState(opId) {
+      const myTimb = state.timbrature.filter(function (t) { return t.operatore_id === opId; });
+      const lastTimb = myTimb[0];
+      const cat = classifyEvent(lastTimb);
+
+      const todayKey = getTodayLocalDateKey();
+      const lastIsToday = lastTimb && getLocalDayKey(lastTimb.orario) === todayKey;
+
+      let status = 'FUORI_SERVIZIO';
+      if (lastIsToday) {
+        if (cat === 'ENTRATA' || cat === 'FINE_PAUSA') status = 'IN_SERVIZIO';
+        else if (cat === 'INIZIO_PAUSA') status = 'IN_PAUSA';
+        else status = 'FUORI_SERVIZIO';
+      }
+
+      const todayEvents = myTimb.filter(function (t) { return getLocalDayKey(t.orario) === todayKey; });
+      const hasTakenPauseToday = todayEvents.some(function (t) { return classifyEvent(t) === 'INIZIO_PAUSA'; });
+
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      const limit1330 = 13 * 60 + 30;
+
+      let alertType = null;
+      let alertMessage = '';
+
+      if (status === 'IN_SERVIZIO' && !hasTakenPauseToday && currentMinutes >= limit1330) {
+        alertType = 'USCITA_PAUSA';
+        alertMessage = 'AVVISO ORARIO 13:30 SUPERATO: Devi timbrare l\'Uscita Pausa pranzo!';
+      } else if (status === 'IN_PAUSA' && lastTimb) {
+        const pauseStartMs = new Date(lastTimb.orario).getTime();
+        const elapsedMin = Math.floor((Date.now() - pauseStartMs) / 60000);
+        if (elapsedMin >= 60 || currentMinutes >= 14 * 60 + 30) {
+          alertType = 'INGRESSO_PAUSA';
+          alertMessage = 'AVVISO FINE PAUSA (' + elapsedMin + ' min trascorsi): Ricordati di timbrare l\'Entrata Pausa (Rientro)!';
+        }
+      }
+
+      return {
+        status: status,
+        lastTimb: lastTimb,
+        hasTakenPauseToday: hasTakenPauseToday,
+        alertType: alertType,
+        alertMessage: alertMessage
+      };
+    }
+
+    function playAlertBeep() {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.35);
+      } catch (e) {}
+    }
+
+    setInterval(function () {
+      if (state.currentView === 'operator' && state.operatorSession) {
+        const info = getOperatorShiftState(state.operatorSession.id);
+        const now = new Date();
+        const minuteStamp = now.getHours() + ':' + now.getMinutes();
+        if (info.alertType && state.lastAlertMinute !== minuteStamp) {
+          state.lastAlertMinute = minuteStamp;
+          playAlertBeep();
+          showToast(info.alertMessage, true);
+          renderOperatorView();
+        }
+      }
+    }, 20000);
+
+    // =========================================================================
+    // MENU SEGRETO: 5 CLIC RAPIDI SUL LOGO "L"
+    // =========================================================================
+    let logoClickCount = 0;
+    let logoClickTimer = null;
+
+    document.getElementById('secretLogoBtn').addEventListener('click', function () {
+      logoClickCount++;
+      clearTimeout(logoClickTimer);
+      if (logoClickCount >= 5) {
+        logoClickCount = 0;
+        document.getElementById('deviceSetupModal').classList.remove('hidden');
+      } else {
+        logoClickTimer = setTimeout(function () {
+          logoClickCount = 0;
+        }, 2000);
+      }
+    });
+
+    function closeDeviceModal() {
+      document.getElementById('deviceSetupModal').classList.add('hidden');
+    }
+
+    function setDeviceMode(mode) {
+      state.deviceMode = mode;
+      localStorage.setItem(STORAGE_DEVICE_MODE, mode);
+      closeDeviceModal();
+      updateNavVisibility();
+      switchView(mode);
+      showToast('Modalita dispositivo salvata: ' + mode.toUpperCase());
+    }
+
+    function updateNavVisibility() {
+      const nav = document.getElementById('adminNavBar');
+      if (state.deviceMode === 'admin') {
+        nav.classList.remove('hidden');
+        nav.classList.add('flex');
+      } else {
+        nav.classList.add('hidden');
+        nav.classList.remove('flex');
+      }
+    }
+
+    function showToast(msg, isError) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = isError
+        ? 'fixed bottom-5 right-5 z-50 max-w-sm bg-red-600 text-white px-4 py-3 rounded-xl shadow-2xl border border-red-400 text-sm font-bold'
+        : 'fixed bottom-5 right-5 z-50 max-w-sm bg-white text-black px-4 py-3 rounded-xl shadow-2xl border border-zinc-300 text-sm font-bold';
+      el.classList.remove('hidden');
+      clearTimeout(window._toastTimeout);
+      window._toastTimeout = setTimeout(function () {
+        el.classList.add('hidden');
+      }, 4500);
+    }
+
+    function withTimeout(promise, ms) {
+      return Promise.race([
+        promise,
+        new Promise(function (_, reject) {
+          setTimeout(function () {
+            reject(new Error('Timeout connessione Cloud (' + ms + 'ms)'));
+          }, ms);
+        })
+      ]);
+    }
+
+    // =========================================================================
+    // CONNESSIONE CLOUD E CARICAMENTO DATI
+    // =========================================================================
+    async function checkCloudConnection() {
+      const dot = document.getElementById('cloudDot');
+      const text = document.getElementById('cloudText');
+
+      if (!supabaseClient) {
+        dot.className = 'w-2 h-2 rounded-full bg-red-500';
+        text.className = 'text-red-400';
+        text.textContent = 'Libreria Cloud bloccata dal browser';
+        return false;
+      }
+
+      try {
+        const res = await withTimeout(
+          supabaseClient.from('operatori').select('id').limit(1),
+          6000
+        );
+        if (res && res.error) {
+          dot.className = 'w-2 h-2 rounded-full bg-red-500';
+          text.className = 'text-red-400';
+          text.textContent = 'Errore DB: ' + (res.error.message || 'Accesso negato');
+          return false;
+        }
+        dot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+        text.className = 'text-emerald-400';
+        text.textContent = 'Cloud Connesso';
+        return true;
+      } catch (err) {
+        dot.className = 'w-2 h-2 rounded-full bg-red-500';
+        text.className = 'text-red-400';
+        text.textContent = 'Rete lenta o bloccata';
+        return false;
+      }
+    }
+
+    async function loadAllData() {
+      if (!supabaseClient) return;
+      try {
+        const [opRes, timbRes, permRes, coopRes] = await withTimeout(
+          Promise.all([
+            supabaseClient.from('operatori').select('*').order('nome_completo', { ascending: true }),
+            supabaseClient.from('timbrature').select('*').order('orario', { ascending: false }).limit(4000),
+            supabaseClient.from('permessi').select('*').order('data_inizio', { ascending: false }).limit(1000),
+            supabaseClient.from('cooperative').select('*').order('nome', { ascending: true })
+          ]),
+          7000
+        );
+        if (!opRes.error && opRes.data) {
+          state.operatori = opRes.data;
+          if (state.operatorSession) {
+            const refreshedMe = state.operatori.find(function (o) { return o.id === state.operatorSession.id; });
+            if (refreshedMe) {
+              state.operatorSession = refreshedMe;
+              localStorage.setItem(STORAGE_OPERATOR_SESSION, JSON.stringify(refreshedMe));
+            }
+          }
+        }
+        if (!timbRes.error && timbRes.data) state.timbrature = timbRes.data;
+        if (!permRes.error && permRes.data) state.permessi = permRes.data;
+        if (coopRes && !coopRes.error && coopRes.data) state.cooperative = coopRes.data;
+      } catch (err) {
+        console.warn('Caricamento dati saltato per timeout:', err);
+      }
+    }
+
+    function stopActiveStreams() {
+      if (state.qrTimer) {
+        clearInterval(state.qrTimer);
+        state.qrTimer = null;
+      }
+      if (state.html5QrScanner) {
+        state.html5QrScanner.stop().catch(function () {});
+        state.html5QrScanner = null;
+      }
+    }
+
+    function renderCurrentViewUI() {
+      if (state.currentView === 'operator') {
+        renderOperatorView();
+      } else if (state.currentView === 'kiosk') {
+        renderKioskView();
+      } else if (state.currentView === 'admin') {
+        renderAdminView();
+      }
+    }
+
+    async function switchView(viewName) {
+      if (state.deviceMode !== 'admin' && viewName !== state.deviceMode) {
+        viewName = state.deviceMode;
+      }
+      stopActiveStreams();
+      state.currentView = viewName;
+
+      ['operator', 'kiosk', 'admin'].forEach(function (v) {
+        const btn = document.getElementById('nav-' + v);
+        if (btn) {
+          btn.className = v === viewName
+            ? 'px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors bg-white text-black border border-white'
+            : 'px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800';
+        }
+      });
+
+      renderCurrentViewUI();
+      await loadAllData();
+      renderCurrentViewUI();
+    }
+
+    // =========================================================================
+    // VISTA 1: AREA OPERATORE
+    // =========================================================================
+    function renderOperatorView() {
+      const container = document.getElementById('appContainer');
+
+      if (!state.operatorSession) {
+        container.innerHTML = `
+          <div class="max-w-md mx-auto mt-8 bg-zinc-950 border border-zinc-800 rounded-3xl p-8 shadow-2xl">
+            <div class="w-14 h-14 rounded-full bg-black border-2 border-white flex items-center justify-center text-white font-extrabold text-2xl mx-auto mb-5">
+              L
+            </div>
+            <h1 class="text-2xl font-extrabold text-white text-center tracking-tight">Accesso Operatore</h1>
+            <p class="text-xs text-zinc-400 text-center mt-2 mb-6 leading-relaxed">
+              Inserisci il tuo Codice Operatore e il PIN personale a 4 cifre assegnati dall'azienda.
+            </p>
+            <form onsubmit="handleOperatorLogin(event)" class="space-y-4">
+              <div>
+                <label class="block text-[11px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">Codice Operatore</label>
+                <input id="opCodeInput" type="text" required placeholder="Es. LO00001" class="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-semibold uppercase focus:outline-none focus:border-white" />
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">PIN Personale (4 cifre)</label>
+                <input id="opPinInput" type="password" inputmode="numeric" maxlength="6" required placeholder="••••" class="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-bold tracking-widest text-center text-lg focus:outline-none focus:border-white" />
+              </div>
+              <button type="submit" id="opLoginSubmitBtn" class="w-full py-3.5 rounded-xl bg-white hover:bg-zinc-200 text-black font-bold text-sm transition-colors mt-2">
+                Accedi al tuo Profilo
+              </button>
+            </form>
+          </div>
+        `;
+        return;
+      }
+
+      const op = state.operatorSession;
+      const myTimbrature = state.timbrature.filter(function (t) { return t.operatore_id === op.id; });
+      const myPermessi = state.permessi.filter(function (p) { return p.operatore_id === op.id && p.tipologia !== '__HQ_GPS_CONFIG__'; });
+      const shift = getOperatorShiftState(op.id);
+
+      let statusLabel = 'Fuori Servizio';
+      let statusColor = 'text-zinc-200';
+      let dotColor = 'bg-zinc-600';
+      let primaryAction = 'ENTRATA';
+      let primaryLabel = 'Registra Entrata';
+
+      if (shift.status === 'IN_SERVIZIO') {
+        statusLabel = 'In Servizio (Turno attivo)';
+        statusColor = 'text-emerald-400';
+        dotColor = 'bg-emerald-400';
+        primaryAction = 'USCITA';
+        primaryLabel = 'Registra Uscita Fine Turno';
+      } else if (shift.status === 'IN_PAUSA') {
+        statusLabel = 'In Pausa Pranzo';
+        statusColor = 'text-amber-400';
+        dotColor = 'bg-amber-400 animate-pulse';
+        primaryAction = 'FINE_PAUSA';
+        primaryLabel = 'Entrata Pausa (Rientro)';
+      }
+
+      container.innerHTML = `
+        <div class="max-w-xl mx-auto space-y-6">
+          ${shift.alertType ? `
+            <div class="p-4 rounded-2xl bg-red-600/95 border border-red-400 text-white shadow-xl flex items-start gap-3 animate-pulse">
+              <span class="text-xl leading-none font-extrabold">!</span>
+              <div class="text-xs font-bold leading-relaxed">${escapeHtml(shift.alertMessage)}</div>
+            </div>
+          ` : ''}
+
+          <div class="bg-zinc-950 border border-zinc-800 rounded-3xl p-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-xs font-bold uppercase tracking-wider text-zinc-400">${escapeHtml(op.codice_operatore || '')} &bull; ${escapeHtml(op.inquadramento || 'Diretto')}${op.sede_lavoro ? ' (' + escapeHtml(op.sede_lavoro) + ')' : ''}</span>
+                <h2 class="text-xl font-extrabold text-white mt-0.5">${escapeHtml(op.nome_completo)}</h2>
+              </div>
+              <button onclick="logoutOperator()" class="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-semibold text-zinc-300">
+                Esci
+              </button>
+            </div>
+
+            <div class="mt-5 p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800 flex items-center justify-between">
+              <div>
+                <div class="text-xs text-zinc-400">Stato Attuale</div>
+                <div class="text-base font-bold ${statusColor} mt-0.5">${statusLabel}</div>
+                ${shift.lastTimb ? `<div class="text-xs text-zinc-500 mt-0.5">Ultima: ${escapeHtml(getDisplayEventLabel(shift.lastTimb))} alle ${formatDateTime(shift.lastTimb.orario)}</div>` : ''}
+              </div>
+              <span class="w-3.5 h-3.5 rounded-full ${dotColor}"></span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 mt-5">
+              <button onclick="startQrClock('${primaryAction}')" class="py-4 px-4 rounded-2xl bg-white hover:bg-zinc-200 text-black font-extrabold text-sm transition-colors flex flex-col items-center justify-center gap-1">
+                <span>Scansiona QR Magazzino</span>
+                <span class="text-[11px] font-semibold text-zinc-700">${primaryLabel}</span>
+              </button>
+              <button onclick="clockWithGps('${primaryAction}')" ${op.abilitato_gps ? '' : 'disabled'} class="py-4 px-4 rounded-2xl ${op.abilitato_gps ? 'bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700' : 'bg-zinc-900/40 text-zinc-600 border border-zinc-800/60 cursor-not-allowed'} font-bold text-sm transition-colors flex flex-col items-center justify-center gap-1">
+                <span>Timbra con GPS</span>
+                <span class="text-[11px] font-normal">${op.abilitato_gps ? primaryLabel + ' (Max 50m)' : 'Disabilitato (Solo QR)'}</span>
+              </button>
+            </div>
+
+            ${shift.status === 'IN_SERVIZIO' ? `
+              <div class="mt-3 pt-3 border-t border-zinc-800/80">
+                <div class="text-[11px] font-semibold text-zinc-400 mb-2">Pausa Pranzo (avviso automatico alle 13:30)</div>
+                <div class="grid grid-cols-1 ${op.abilitato_gps ? 'sm:grid-cols-2' : ''} gap-2.5">
+                  <button onclick="startQrClock('INIZIO_PAUSA')" class="py-3 px-4 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-xs transition-colors">
+                    Uscita Pausa (con QR)
+                  </button>
+                  ${op.abilitato_gps ? `
+                    <button onclick="clockWithGps('INIZIO_PAUSA')" class="py-3 px-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-amber-500/40 text-amber-300 font-bold text-xs transition-colors">
+                      Uscita Pausa (con GPS)
+                    </button>
+                  ` : ''}
+                </div>
+              </div>
+            ` : ''}
+
+            <div id="qrScannerWrapper" class="hidden mt-5 p-4 rounded-2xl bg-black border border-zinc-700">
+              <div class="flex items-center justify-between mb-3">
+                <span id="qrScannerTitle" class="text-xs font-bold text-white uppercase">Inquadra il QR sul monitor</span>
+                <button onclick="stopQrScannerUI()" class="text-xs text-red-400 font-bold">Annulla</button>
+              </div>
+              <div id="qrReaderBox" class="w-full rounded-xl overflow-hidden"></div>
+            </div>
+          </div>
+
+          <div class="bg-zinc-950 border border-zinc-800 rounded-3xl p-6">
+            <h3 class="text-base font-bold text-white mb-4">Richiedi Permesso o Ferie</h3>
+            <form onsubmit="submitLeaveRequest(event)" class="space-y-3">
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label class="block text-[11px] text-zinc-400 font-semibold mb-1">Tipologia</label>
+                  <select id="leaveType" class="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-xs font-semibold">
+                    <option value="Permesso Orario / ROL">Permesso Orario / ROL</option>
+                    <option value="Ferie">Ferie</option>
+                    <option value="Malattia">Malattia</option>
+                    <option value="Altro">Altro</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-[11px] text-zinc-400 font-semibold mb-1">Inizio</label>
+                  <input id="leaveStart" type="datetime-local" required class="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-xs" />
+                </div>
+                <div>
+                  <label class="block text-[11px] text-zinc-400 font-semibold mb-1">Fine</label>
+                  <input id="leaveEnd" type="datetime-local" required class="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-xs" />
+                </div>
+              </div>
+              <input id="leaveNote" type="text" placeholder="Note opzionali (es. visita medica, ore richieste...)" class="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-xs" />
+              <button type="submit" class="w-full py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-xs border border-zinc-600">
+                Invia Richiesta all'Amministrazione
+              </button>
+            </form>
+
+            ${myPermessi.length > 0 ? `
+              <div class="mt-4 pt-4 border-t border-zinc-800 space-y-2">
+                <div class="text-xs font-bold text-zinc-400">Le tue richieste</div>
+                ${myPermessi.slice(0, 5).map(function (p) {
+                  return `
+                    <div class="flex items-center justify-between text-xs bg-zinc-900/70 px-3 py-2 rounded-xl border border-zinc-800">
+                      <div>
+                        <span class="font-bold text-white">${escapeHtml(p.tipologia)}</span>
+                        <span class="text-zinc-400 block">${formatDateTime(p.data_inizio)} &rarr; ${formatDateTime(p.data_fine)}</span>
+                      </div>
+                      <span class="px-2 py-0.5 rounded-md font-bold text-[11px] ${p.stato === 'Approvata' ? 'bg-emerald-500/20 text-emerald-300' : p.stato === 'Rifiutata' ? 'bg-red-500/20 text-red-300' : 'bg-amber-500/20 text-amber-300'}">${escapeHtml(p.stato)}</span>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            ` : ''}
+          </div>
+
+          <div class="bg-zinc-950 border border-zinc-800 rounded-3xl p-6">
+            <h3 class="text-base font-bold text-white mb-3">Ultime Timbrature Registrate</h3>
+            ${myTimbrature.length === 0 ? '<p class="text-xs text-zinc-500">Nessuna timbratura presente.</p>' : `
+              <div class="space-y-2">
+                ${myTimbrature.slice(0, 12).map(function (t) {
+                  const cat = classifyEvent(t);
+                  const dot = (cat === 'ENTRATA' || cat === 'FINE_PAUSA') ? 'bg-emerald-400' : 'bg-amber-400';
+                  return `
+                    <div class="flex items-center justify-between text-xs bg-zinc-900/60 px-3.5 py-2.5 rounded-xl border border-zinc-800/80">
+                      <div class="flex items-center gap-2.5">
+                        <span class="w-2 h-2 rounded-full ${dot}"></span>
+                        <span class="font-bold text-white">${escapeHtml(getDisplayEventLabel(t))}</span>
+                        <span class="text-zinc-500">(${escapeHtml(formatMetodoLabel(t.metodo))})</span>
+                      </div>
+                      <span class="text-zinc-300 font-medium">${formatDateTime(t.orario)}</span>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+    }
+
+    async function handleOperatorLogin(e) {
+      e.preventDefault();
+      if (!supabaseClient) {
+        showToast('Database non connesso. Verifica la connessione internet.', true);
+        return;
+      }
+      const btn = document.getElementById('opLoginSubmitBtn');
+      if (btn) btn.textContent = 'Verifica in corso...';
+
+      const code = document.getElementById('opCodeInput').value.trim().toUpperCase();
+      const pin = document.getElementById('opPinInput').value.trim();
+
+      try {
+        const { data, error } = await withTimeout(
+          supabaseClient
+            .from('operatori')
+            .select('*')
+            .eq('codice_operatore', code)
+            .eq('pin_code', pin)
+            .eq('attivo', true)
+            .maybeSingle(),
+          7000
+        );
+
+        if (error || !data) {
+          showToast('Codice Operatore o PIN non validi', true);
+          if (btn) btn.textContent = 'Accedi al tuo Profilo';
+          return;
+        }
+
+        state.operatorSession = data;
+        localStorage.setItem(STORAGE_OPERATOR_SESSION, JSON.stringify(data));
+        renderOperatorView();
+        showToast('Benvenuto, ' + data.nome_completo);
+        await loadAllData();
+        renderOperatorView();
+      } catch (err) {
+        showToast('Errore di rete durante il login. Riprova.', true);
+        if (btn) btn.textContent = 'Accedi al tuo Profilo';
+      }
+    }
+
+    function logoutOperator() {
+      state.operatorSession = null;
+      localStorage.removeItem(STORAGE_OPERATOR_SESSION);
+      renderOperatorView();
+    }
+
+    function getActionTitle(actionCode) {
+      if (actionCode === 'INIZIO_PAUSA') return 'Uscita Pausa';
+      if (actionCode === 'FINE_PAUSA') return 'Entrata Pausa (Rientro)';
+      if (actionCode === 'ENTRATA') return 'Entrata';
+      return 'Uscita';
+    }
+
+    function startQrClock(actionCode) {
+      unlockAudioContext();
+
+      const wrapper = document.getElementById('qrScannerWrapper');
+      const title = document.getElementById('qrScannerTitle');
+      title.textContent = 'Inquadra QR per ' + getActionTitle(actionCode).toUpperCase();
+      wrapper.classList.remove('hidden');
+
+      if (state.html5QrScanner) {
+        state.html5QrScanner.stop().catch(function () {});
+      }
+
+      const scanner = new Html5Qrcode('qrReaderBox');
+      state.html5QrScanner = scanner;
+      let scanLocked = false;
+
+      scanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 220, height: 220 } },
+        async function (decodedText) {
+          if (scanLocked) return;
+          if (decodedText && decodedText.startsWith('LOGITRACK_QR_')) {
+            scanLocked = true;
+
+            playScanConfirmBeep();
+            if (navigator.vibrate) {
+              try { navigator.vibrate([120, 60, 120]); } catch (e) {}
+            }
+
+            await scanner.stop().catch(function () {});
+            state.html5QrScanner = null;
+            wrapper.classList.add('hidden');
+            const sedeTag = (state.operatorSession && state.operatorSession.sede_lavoro)
+              ? 'Terminale QR (' + state.operatorSession.sede_lavoro + ')'
+              : 'Terminale Magazzino';
+            await saveTimbratura(actionCode, 'QR_DINAMICO', null, null, sedeTag);
+          }
+        },
+        function () {}
+      ).catch(function (err) {
+        console.error(err);
+        showToast('Impossibile avviare la fotocamera. Verifica i permessi browser.', true);
+      });
+    }
+
+    function stopQrScannerUI() {
+      if (state.html5QrScanner) {
+        state.html5QrScanner.stop().catch(function () {});
+        state.html5QrScanner = null;
+      }
+      document.getElementById('qrScannerWrapper').classList.add('hidden');
+    }
+
+    function clockWithGps(actionCode) {
+      unlockAudioContext();
+
+      if (!state.operatorSession || !state.operatorSession.abilitato_gps) {
+        showToast('Timbratura GPS disabilitata per questo profilo.', true);
+        return;
+      }
+      const hq = getActiveHqCoords();
+      if (!hq) {
+        showToast('Coordinate della Sede non ancora configurate dall\'Amministratore.', true);
+        return;
+      }
+      if (!navigator.geolocation) {
+        showToast('GPS non supportato dal dispositivo', true);
+        return;
+      }
+      showToast('Verifica posizione GPS (max 50 metri dalla sede)...');
+      navigator.geolocation.getCurrentPosition(
+        async function (pos) {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          const distMeters = Math.round(calculateDistanceMeters(lat, lng, hq.lat, hq.lng));
+
+          if (distMeters > MAX_GPS_RADIUS_METERS) {
+            showToast('Timbratura RIFIUTATA: sei a ' + distMeters + ' metri dalla sede (massimo consentito: ' + MAX_GPS_RADIUS_METERS + 'm).', true);
+            return;
+          }
+
+          playScanConfirmBeep();
+          await saveTimbratura(actionCode, 'GPS', lat, lng, 'GPS Sede (' + distMeters + 'm)');
+        },
+        function (err) {
+          if (err && err.code === 1) {
+            showToast('Permesso GPS negato. Abilita la posizione nelle impostazioni del browser.', true);
+          } else {
+            showToast('Segnale GPS assente o scaduto. Riprova.', true);
+          }
+        },
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+      );
+    }
+
+    async function saveTimbratura(actionCode, metodo, lat, lng, indirizzo, customIsoTime) {
+      if (!state.operatorSession || !supabaseClient) return;
+
+      const finalIsoTime = customIsoTime || new Date().toISOString();
+      const operatorName = state.operatorSession.nome_completo || '';
+
+      let dbTipo = 'Entrata';
+      let tagIndirizzo = indirizzo || '';
+      if (actionCode === 'INIZIO_PAUSA') {
+        dbTipo = 'Uscita';
+        tagIndirizzo = '[INIZIO_PAUSA] ' + tagIndirizzo;
+      } else if (actionCode === 'FINE_PAUSA') {
+        dbTipo = 'Entrata';
+        tagIndirizzo = '[FINE_PAUSA] ' + tagIndirizzo;
+      } else if (actionCode === 'USCITA') {
+        dbTipo = 'Uscita';
+      } else {
+        dbTipo = 'Entrata';
+      }
+
+      const basePayload = {
+        operatore_id: state.operatorSession.id,
+        tipo: dbTipo,
+        metodo: metodo,
+        orario: finalIsoTime,
+        latitudine: lat,
+        longitudine: lng,
+        indirizzo_rilevato: tagIndirizzo.trim(),
+        stato: 'Approvata'
+      };
+
+      let res = await supabaseClient.from('timbrature').insert([basePayload]);
+
+      if (res.error && res.error.message) {
+        const msg = res.error.message;
+        if (msg.includes('timbrature_tipo_check')) {
+          const altTipo = dbTipo === 'Entrata' ? 'Ingresso' : 'Uscita';
+          res = await supabaseClient.from('timbrature').insert([Object.assign({}, basePayload, { tipo: altTipo })]);
+        } else if (msg.includes('timbrature_metodo_check')) {
+          const candidates = metodo === 'QR_DINAMICO'
+            ? ['QR', 'QR_CODE', 'Sede']
+            : ['GPS_MOBILE', 'GPS_ESTERNO', 'POSIZIONE', 'Esterno'];
+          for (let i = 0; i < candidates.length; i++) {
+            res = await supabaseClient.from('timbrature').insert([Object.assign({}, basePayload, { metodo: candidates[i] })]);
+            if (!res.error) break;
+          }
+        }
+      }
+
+      if (res.error) {
+        showToast('Errore salvataggio timbratura: ' + res.error.message, true);
+        return;
+      }
+
+      await loadAllData();
+      renderOperatorView();
+
+      const confirmLabel = getConfirmBannerText(actionCode);
+      showClockConfirmationModal(actionCode, operatorName, finalIsoTime);
+      showToast(confirmLabel);
+    }
+
+    async function submitLeaveRequest(e) {
+      e.preventDefault();
+      if (!state.operatorSession || !supabaseClient) return;
+      const tipologia = document.getElementById('leaveType').value;
+      const data_inizio = new Date(document.getElementById('leaveStart').value).toISOString();
+      const data_fine = new Date(document.getElementById('leaveEnd').value).toISOString();
+      const note = document.getElementById('leaveNote').value.trim();
+
+      const { error } = await supabaseClient.from('permessi').insert([{
+        operatore_id: state.operatorSession.id,
+        tipologia: tipologia,
+        data_inizio: data_inizio,
+        data_fine: data_fine,
+        note: note,
+        stato: 'In attesa'
+      }]);
+
+      if (error) {
+        showToast('Errore invio richiesta: ' + error.message, true);
+        return;
+      }
+
+      await loadAllData();
+      renderOperatorView();
+      showToast('Richiesta inviata con successo');
+    }
+
+    // =========================================================================
+    // VISTA 2: TERMINALE QR MAGAZZINO / SEDE COOPERATIVA (KIOSK DINAMICO)
+    // =========================================================================
+    function renderKioskView() {
+      const ctx = getAdminContext();
+      const titoloSede = (!ctx.isSuperAdmin && ctx.coop)
+        ? 'Terminale Presenze — ' + escapeHtml(ctx.coop.nome)
+        : 'Terminale Presenze Magazzino';
+
+      const container = document.getElementById('appContainer');
+      container.innerHTML = `
+        <div class="max-w-lg mx-auto mt-6 bg-zinc-950 border border-zinc-800 rounded-3xl p-8 text-center shadow-2xl">
+          <span class="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold uppercase tracking-wider">
+            ${titoloSede}
+          </span>
+          <h1 class="text-2xl font-extrabold text-white mt-4">Scansiona per Timbrare</h1>
+          <p class="text-xs text-zinc-400 mt-1.5">
+            Apri l'app sul tuo smartphone, accedi con il tuo PIN e inquadra questo codice QR.
+          </p>
+
+          <div class="my-7 inline-block p-5 bg-white rounded-3xl shadow-xl">
+            <div id="kioskQrCanvas"></div>
+          </div>
+
+          <div id="kioskClock" class="text-3xl font-extrabold text-white tracking-tight font-mono">--:--:--</div>
+          <div id="kioskDate" class="text-xs text-zinc-400 mt-1 capitalize"></div>
+          <div class="text-[11px] text-zinc-500 mt-4">Codice di sicurezza rigenerato automaticamente ogni 15 secondi</div>
+        </div>
+      `;
+
+      function refreshQrCode() {
+        const box = document.getElementById('kioskQrCanvas');
+        if (!box) return;
+        box.innerHTML = '';
+        const prefix = (!ctx.isSuperAdmin && ctx.coop) ? 'LOGITRACK_QR_' + ctx.coop.id + '_' : 'LOGITRACK_QR_';
+        const token = prefix + Date.now();
+        if (typeof QRCode === 'function') {
+          new QRCode(box, {
+            text: token,
+            width: 220,
+            height: 220,
+            colorDark: '#000000',
+            colorLight: '#ffffff',
+            correctLevel: QRCode.CorrectLevel.H
+          });
+        }
+      }
+
+      function updateClock() {
+        const now = new Date();
+        const cEl = document.getElementById('kioskClock');
+        const dEl = document.getElementById('kioskDate');
+        if (cEl) cEl.textContent = now.toLocaleTimeString('it-IT');
+        if (dEl) dEl.textContent = now.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      }
+
+      refreshQrCode();
+      updateClock();
+      let tick = 0;
+      state.qrTimer = setInterval(function () {
+        updateClock();
+        tick++;
+        if (tick >= 15) {
+          tick = 0;
+          refreshQrCode();
+        }
+      }, 1000);
+    }
+
+    // =========================================================================
+    // VISTA 3: DASHBOARD AMMINISTRATORE (SUPER ADMIN + ADMIN COOPERATIVA)
+    // =========================================================================
+    function renderAdminView() {
+      const container = document.getElementById('appContainer');
+
+      if (!state.adminSession) {
+        container.innerHTML = `
+          <div class="max-w-md mx-auto mt-8 bg-zinc-950 border border-zinc-800 rounded-3xl p-8 shadow-2xl">
+            <h1 class="text-2xl font-extrabold text-white text-center">Accesso Amministratore</h1>
+            <p class="text-xs text-zinc-400 text-center mt-2 mb-6">
+              Inserisci le credenziali amministrative (Azienda o Cooperativa abilitata) per gestire presenze, operatori e report.
+            </p>
+            <form onsubmit="handleAdminLogin(event)" class="space-y-4">
+              <div>
+                <label class="block text-[11px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">Email Amministratore</label>
+                <input id="adminEmail" type="email" required placeholder="admin@azienda.it" class="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-sm focus:outline-none focus:border-white" />
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">Password</label>
+                <input id="adminPassword" type="password" required placeholder="••••••••" class="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-sm focus:outline-none focus:border-white" />
+              </div>
+              <button type="submit" id="adminLoginSubmitBtn" class="w-full py-3.5 rounded-xl bg-white hover:bg-zinc-200 text-black font-bold text-sm transition-colors">
+                Accedi alla Dashboard
+              </button>
+            </form>
+          </div>
+        `;
+        return;
+      }
+
+      const ctx = getAdminContext();
+
+      // BLOCCO AUTOMATICO SE L'ABBONAMENTO ANNUO DELLA COOPERATIVA E' SCADUTO O SOSPESO
+      if (!ctx.isSuperAdmin && ctx.coop && !isCoopSubscriptionValid(ctx.coop)) {
+        const payLink = ctx.coop.stripe_payment_link || '';
+        container.innerHTML = `
+          <div class="max-w-lg mx-auto mt-10 bg-zinc-950 border-2 border-red-500/60 rounded-3xl p-8 text-center shadow-2xl space-y-4">
+            <div class="w-14 h-14 rounded-full bg-red-500/20 border border-red-500 text-red-400 flex items-center justify-center mx-auto text-2xl font-extrabold">
+              !
+            </div>
+            <h2 class="text-xl font-extrabold text-white">Abbonamento Annuo Scaduto</h2>
+            <p class="text-xs text-zinc-300 leading-relaxed">
+              La licenza annuale per <strong>${escapeHtml(ctx.coop.nome)}</strong> (${escapeHtml(ctx.coop.piano_nome || 'Piano Annuo')}) risulta scaduta il <strong>${escapeHtml(formatDayKeyItalian(String(ctx.coop.data_scadenza || '').slice(0, 10)))}</strong>.
+            </p>
+            <div class="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-400">
+              Canone Fisso Annuo: <strong class="text-white text-sm">&euro; ${Number(ctx.coop.canone_annuo || 0).toFixed(2)} / anno</strong> (fino a ${ctx.coop.max_dipendenti || 50} dipendenti)
+            </div>
+            ${payLink ? `
+              <a href="${escapeHtml(payLink)}" target="_blank" rel="noopener noreferrer" class="block w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-sm transition-colors">
+                Rinnova Abbonamento Annuo Online
+              </a>
+            ` : `
+              <div class="text-xs text-amber-300 font-semibold">
+                Contatta l'amministrazione LogiTrack (${escapeHtml(SUPER_ADMIN_EMAIL)}) per il rinnovo annuale.
+              </div>
+            `}
+            <button onclick="logoutAdmin()" class="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-xs font-semibold text-zinc-400">
+              Disconnetti
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      const scopedOperatori = getScopedOperatori();
+      const scopedPermessi = getScopedPermessi().filter(function (p) { return p.tipologia !== '__HQ_GPS_CONFIG__'; });
+      const pendingPermessi = scopedPermessi.filter(function (p) { return p.stato === 'In attesa'; });
+
+      container.innerHTML = `
+        <div class="space-y-6">
+          ${!ctx.isSuperAdmin && ctx.coop ? `
+            <div class="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-zinc-900 to-zinc-950 border border-emerald-500/30 rounded-2xl px-5 py-3.5">
+              <div class="flex items-center gap-3">
+                <span class="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 text-[11px] font-extrabold uppercase">Portale Cooperativa</span>
+                <div>
+                  <div class="text-sm font-extrabold text-white">${escapeHtml(ctx.coop.nome)}</div>
+                  <div class="text-[11px] text-zinc-400">
+                    ${escapeHtml(ctx.coop.piano_nome || 'Piano Annuo')} &bull; Dipendenti: <strong class="text-white">${scopedOperatori.length}/${ctx.coop.max_dipendenti || 50}</strong> &bull; Scadenza: <strong class="text-white">${escapeHtml(formatDayKeyItalian(String(ctx.coop.data_scadenza || '').slice(0, 10)))}</strong>
+                  </div>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-zinc-300">&euro; ${Number(ctx.coop.canone_annuo || 0).toFixed(2)}/anno</span>
+                ${ctx.coop.stripe_payment_link ? `
+                  <a href="${escapeHtml(ctx.coop.stripe_payment_link)}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs">
+                    Rinnova / Pagamento
+                  </a>
+                ` : ''}
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- BARRA CONTROLLI ADMIN -->
+          <div class="flex flex-wrap items-center justify-between gap-3 bg-zinc-950 border border-zinc-800 rounded-2xl p-4">
+            <div class="flex flex-wrap items-center gap-2">
+              <button onclick="setAdminTab('live')" class="px-3.5 py-2 rounded-xl text-xs font-bold ${state.adminTab === 'live' ? 'bg-white text-black' : 'bg-zinc-900 text-zinc-300 hover:text-white'}">
+                Live &amp; Timbrature
+              </button>
+              <button onclick="setAdminTab('presenze')" class="px-3.5 py-2 rounded-xl text-xs font-bold ${state.adminTab === 'presenze' ? 'bg-white text-black' : 'bg-zinc-900 text-zinc-300 hover:text-white'}">
+                Presenti / Assenti
+              </button>
+              <button onclick="setAdminTab('operatori')" class="px-3.5 py-2 rounded-xl text-xs font-bold ${state.adminTab === 'operatori' ? 'bg-white text-black' : 'bg-zinc-900 text-zinc-300 hover:text-white'}">
+                Anagrafica Operatori (${scopedOperatori.length})
+              </button>
+              <button onclick="setAdminTab('permessi')" class="px-3.5 py-2 rounded-xl text-xs font-bold ${state.adminTab === 'permessi' ? 'bg-white text-black' : 'bg-zinc-900 text-zinc-300 hover:text-white'}">
+                Richieste Permessi ${pendingPermessi.length > 0 ? '(' + pendingPermessi.length + ')' : ''}
+              </button>
+              <button onclick="setAdminTab('report')" class="px-3.5 py-2 rounded-xl text-xs font-bold ${state.adminTab === 'report' ? 'bg-white text-black' : 'bg-zinc-900 text-zinc-300 hover:text-white'}">
+                Report &amp; Export Excel
+              </button>
+              ${ctx.isSuperAdmin ? `
+                <button onclick="setAdminTab('cooperative')" class="px-3.5 py-2 rounded-xl text-xs font-bold ${state.adminTab === 'cooperative' ? 'bg-emerald-400 text-black' : 'bg-zinc-900 text-emerald-300 border border-emerald-500/30 hover:bg-zinc-800'}">
+                  Cooperative &amp; Abbonamenti (${state.cooperative.length})
+                </button>
+              ` : ''}
+            </div>
+            <button onclick="logoutAdmin()" class="px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-semibold text-zinc-300">
+              Disconnetti
+            </button>
+          </div>
+
+          <div id="adminTabContent"></div>
+        </div>
+      `;
+
+      renderAdminTabContent();
+    }
+
+    function setAdminTab(tab) {
+      state.adminTab = tab;
+      renderAdminView();
+    }
+
+    function setReportSubTab(subTab) {
+      state.reportSubTab = subTab;
+      renderAdminTabContent();
+    }
+
+    function setPermessiSubTab(subTab) {
+      state.permessiSubTab = subTab;
+      renderAdminTabContent();
+    }
+
+    function changeLiveFilterDate(val) {
+      state.liveFilterDate = val || getTodayLocalDateKey();
+      renderAdminTabContent();
+    }
+
+    function changePresenzeFilterDate(val) {
+      state.presenzeFilterDate = val || getTodayLocalDateKey();
+      renderAdminTabContent();
+    }
+
+    function normalizeFullName(name) {
+      return String(name || '').trim().toLowerCase().split(' ').filter(Boolean).join(' ');
+    }
+
+    function getOperatorEmail(op) {
+      if (!op) return '';
+      if (op.email) return op.email;
+      if (savedEmailsMap[op.id]) return savedEmailsMap[op.id];
+      const normName = normalizeFullName(op.nome_completo);
+      if (PRELOADED_EMAILS_BY_NAME[normName]) return PRELOADED_EMAILS_BY_NAME[normName];
+      return '';
+    }
+
+    function copyAllOperatorEmails() {
+      const scopedOps = getScopedOperatori();
+      const emails = scopedOps
+        .map(function (o) { return getOperatorEmail(o); })
+        .filter(function (e) { return e && e.includes('@'); });
+      const uniqueEmails = Array.from(new Set(emails));
+      const str = uniqueEmails.join('; ');
+      if (!str) {
+        showToast('Nessuna email disponibile da copiare', true);
+        return;
+      }
+      navigator.clipboard.writeText(str).then(function () {
+        showToast('Copiate ' + uniqueEmails.length + ' email negli appunti (pronte per CCN)!', false);
+      }).catch(function () {
+        showToast('Impossibile copiare automaticamente', true);
+      });
+    }
+
+    // =========================================================================
+    // HELPER RENDER CELLA TIMBRATURA MODIFICABILE (SOLO ADMIN)
+    // =========================================================================
+    function renderEditableSlotCell(op, dateKey, category, timbObj) {
+      if (timbObj) {
+        const timeStr = formatTimeOnly(timbObj.orario);
+        return `
+          <div class="inline-flex flex-col items-start">
+            <button type="button" onclick="openEditTimbModal('${timbObj.id}', '${op.id}', '${dateKey}', '${category}')" title="Clicca per modificare orario o eliminare" class="px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white font-mono font-bold text-xs inline-flex items-center gap-1.5 transition-colors">
+              <span>${escapeHtml(timeStr)}</span>
+              <span class="text-[10px] text-zinc-400">&#9998;</span>
+            </button>
+            ${renderLocationCompactHtml(timbObj)}
+          </div>
+        `;
+      }
+      return `
+        <button type="button" onclick="openEditTimbModal('', '${op.id}', '${dateKey}', '${category}')" title="Aggiungi timbratura manuale" class="px-2.5 py-1 rounded-lg bg-zinc-900/40 hover:bg-zinc-800 border border-dashed border-zinc-800 text-zinc-500 hover:text-zinc-200 text-[11px] font-semibold transition-colors">
+          + Aggiungi
+        </button>
+      `;
+    }
+
+    function renderAdminTabContent() {
+      const box = document.getElementById('adminTabContent');
+      if (!box) return;
+
+      const ctx = getAdminContext();
+      const scopedOperatori = getScopedOperatori();
+      const scopedTimbrature = getScopedTimbrature();
+      const scopedPermessi = getScopedPermessi();
+
+      if (state.adminTab === 'live') {
+        const targetDay = state.liveFilterDate || getTodayLocalDateKey();
+        const dayTimbrature = scopedTimbrature.filter(function (t) {
+          return t.orario && getLocalDayKey(t.orario) === targetDay;
+        });
+
+        box.innerHTML = `
+          <div class="bg-zinc-950 border border-zinc-800 rounded-3xl p-6">
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+              <div>
+                <h2 class="text-lg font-extrabold text-white">Live &amp; Timbrature del ${escapeHtml(formatDayKeyItalian(targetDay))}</h2>
+                <p class="text-xs text-zinc-400">Clicca su un orario per modificarlo oppure su "+ Aggiungi" per inserire una timbratura mancante</p>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <label class="text-xs text-zinc-400 font-semibold">Data (gg/mm/aaaa):</label>
+                <input type="date" value="${targetDay}" onchange="changeLiveFilterDate(this.value)" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-xs font-bold" />
+                <button type="button" onclick="changeLiveFilterDate(getTodayLocalDateKey())" class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-white">
+                  Oggi
+                </button>
+                <button type="button" onclick="switchView('admin')" class="px-3.5 py-2 rounded-xl bg-white hover:bg-zinc-200 text-xs font-extrabold text-black">
+                  Aggiorna
+                </button>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr class="border-b border-zinc-800 text-[11px] uppercase text-zinc-400">
+                    <th class="py-3 px-3">Operatore</th>
+                    <th class="py-3 px-3">Entrata</th>
+                    <th class="py-3 px-3">Uscita Pausa</th>
+                    <th class="py-3 px-3">Entrata Pausa</th>
+                    <th class="py-3 px-3">Uscita</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-zinc-800/70 text-xs">
+                  ${scopedOperatori.map(function (op) {
+                    const opEvents = dayTimbrature
+                      .filter(function (t) { return t.operatore_id === op.id; })
+                      .sort(function (a, b) { return new Date(a.orario) - new Date(b.orario); });
+
+                    const entrataEv = opEvents.find(function (e) { return classifyEvent(e) === 'ENTRATA'; });
+                    const uscitaPausaEv = opEvents.find(function (e) { return classifyEvent(e) === 'INIZIO_PAUSA'; });
+                    const entrataPausaEv = opEvents.find(function (e) { return classifyEvent(e) === 'FINE_PAUSA'; });
+                    const uscitaEv = opEvents.slice().reverse().find(function (e) { return classifyEvent(e) === 'USCITA'; });
+
+                    return `
+                      <tr class="hover:bg-zinc-900/40">
+                        <td class="py-3 px-3">
+                          <div class="font-bold text-white">${escapeHtml(op.nome_completo)}</div>
+                          <div class="text-[11px] text-zinc-500">${escapeHtml(op.codice_operatore || '')} &bull; ${escapeHtml(op.inquadramento || '-')}${op.sede_lavoro ? ' &bull; ' + escapeHtml(op.sede_lavoro) : ''}</div>
+                        </td>
+                        <td class="py-3 px-3 align-top">${renderEditableSlotCell(op, targetDay, 'ENTRATA', entrataEv)}</td>
+                        <td class="py-3 px-3 align-top">${renderEditableSlotCell(op, targetDay, 'INIZIO_PAUSA', uscitaPausaEv)}</td>
+                        <td class="py-3 px-3 align-top">${renderEditableSlotCell(op, targetDay, 'FINE_PAUSA', entrataPausaEv)}</td>
+                        <td class="py-3 px-3 align-top">${renderEditableSlotCell(op, targetDay, 'USCITA', uscitaEv)}</td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      } else if (state.adminTab === 'presenze') {
+        const targetDay = state.presenzeFilterDate || getTodayLocalDateKey();
+        const realPermessi = scopedPermessi.filter(function (p) { return p.tipologia !== '__HQ_GPS_CONFIG__'; });
+
+        const rows = scopedOperatori.map(function (op) {
+          const opDayTimbs = scopedTimbrature
+            .filter(function (t) { return t.operatore_id === op.id && t.orario && getLocalDayKey(t.orario) === targetDay; })
+            .sort(function (a, b) { return new Date(a.orario) - new Date(b.orario); });
+
+          const isPresent = opDayTimbs.length > 0;
+          const approvedLeave = realPermessi.find(function (p) {
+            if (p.operatore_id !== op.id || p.stato !== 'Approvata') return false;
+            const startDay = getLocalDayKey(p.data_inizio);
+            const endDay = getLocalDayKey(p.data_fine);
+            return targetDay >= startDay && targetDay <= endDay;
+          });
+
+          let statusCategory = 'ASSENZA_INGIUSTIFICATA';
+          if (isPresent) statusCategory = 'PRESENTE';
+          else if (approvedLeave) statusCategory = 'ASSENZA_GIUSTIFICATA';
+
+          return {
+            op: op,
+            isPresent: isPresent,
+            firstTimb: opDayTimbs[0] || null,
+            lastTimb: opDayTimbs[opDayTimbs.length - 1] || null,
+            approvedLeave: approvedLeave,
+            statusCategory: statusCategory
+          };
+        });
+
+        const countPresenti = rows.filter(function (r) { return r.statusCategory === 'PRESENTE'; }).length;
+        const countGiustificati = rows.filter(function (r) { return r.statusCategory === 'ASSENZA_GIUSTIFICATA'; }).length;
+        const countIngiustificati = rows.filter(function (r) { return r.statusCategory === 'ASSENZA_INGIUSTIFICATA'; }).length;
+
+        box.innerHTML = `
+          <div class="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 space-y-5">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 class="text-lg font-extrabold text-white">Verifica Presenti e Assenti &mdash; ${escapeHtml(formatDayKeyItalian(targetDay))}</h2>
+                <p class="text-xs text-zinc-400">Chi non ha timbrato ed e sprovvisto di permesso approvato risulta automaticamente in Assenza Ingiustificata</p>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <input type="date" value="${targetDay}" onchange="changePresenzeFilterDate(this.value)" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-xs font-bold" />
+                <button type="button" onclick="changePresenzeFilterDate(getTodayLocalDateKey())" class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-white">
+                  Oggi
+                </button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div class="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
+                <div class="text-xs text-emerald-300 font-semibold">Presenti (Hanno timbrato)</div>
+                <div class="text-2xl font-extrabold text-emerald-400 mt-1">${countPresenti}</div>
+              </div>
+              <div class="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/30">
+                <div class="text-xs text-blue-300 font-semibold">Assenti Giustificati (Permesso/Ferie)</div>
+                <div class="text-2xl font-extrabold text-blue-400 mt-1">${countGiustificati}</div>
+              </div>
+              <div class="p-4 rounded-2xl bg-red-500/10 border border-red-500/30">
+                <div class="text-xs text-red-300 font-semibold">Assenza Ingiustificata (Default)</div>
+                <div class="text-2xl font-extrabold text-red-400 mt-1">${countIngiustificati}</div>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr class="border-b border-zinc-800 text-[11px] uppercase text-zinc-400">
+                    <th class="py-3 px-3">Codice</th>
+                    <th class="py-3 px-3">Operatore</th>
+                    <th class="py-3 px-3">Sede / Commessa</th>
+                    <th class="py-3 px-3">Stato Presenza</th>
+                    <th class="py-3 px-3">Dettaglio / Giustificativo</th>
+                    <th class="py-3 px-3 text-right">Azione Rapida</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-zinc-800/70">
+                  ${rows.map(function (r) {
+                    let badgeHtml = '';
+                    let detailText = '';
+                    let actionHtml = '-';
+
+                    if (r.statusCategory === 'PRESENTE') {
+                      badgeHtml = '<span class="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 font-extrabold">PRESENTE</span>';
+                      detailText = 'Prima timbratura: ' + formatTimeOnly(r.firstTimb.orario) + (r.lastTimb && r.lastTimb.id !== r.firstTimb.id ? ' &bull; Ultima: ' + formatTimeOnly(r.lastTimb.orario) : '');
+                    } else if (r.statusCategory === 'ASSENZA_GIUSTIFICATA') {
+                      badgeHtml = '<span class="px-2.5 py-1 rounded-lg bg-blue-500/20 text-blue-300 font-extrabold">ASSENTE (GIUSTIFICATO)</span>';
+                      detailText = escapeHtml(r.approvedLeave.tipologia) + (r.approvedLeave.note ? ' - ' + escapeHtml(r.approvedLeave.note) : '');
+                    } else {
+                      badgeHtml = '<span class="px-2.5 py-1 rounded-lg bg-red-500/20 text-red-300 font-extrabold">ASSENZA INGIUSTIFICATA</span>';
+                      detailText = 'Nessuna timbratura e nessuna richiesta approvata';
+                      actionHtml = `<button type="button" onclick="quickJustifyAbsence('${r.op.id}', '${targetDay}')" class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 text-white font-bold text-[11px]">Giustifica Ora</button>`;
+                    }
+
+                    return `
+                      <tr class="hover:bg-zinc-900/40">
+                        <td class="py-3 px-3 font-mono text-zinc-400">${escapeHtml(r.op.codice_operatore || '-')}</td>
+                        <td class="py-3 px-3 font-bold text-white">${escapeHtml(r.op.nome_completo)}</td>
+                        <td class="py-3 px-3 text-zinc-400">${escapeHtml(r.op.sede_lavoro || 'CANDIDA')}</td>
+                        <td class="py-3 px-3">${badgeHtml}</td>
+                        <td class="py-3 px-3 text-zinc-300">${detailText}</td>
+                        <td class="py-3 px-3 text-right">${actionHtml}</td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      } else if (state.adminTab === 'operatori') {
+        const hq = getActiveHqCoords();
+        const hqLatVal = hq ? hq.lat : '';
+        const hqLngVal = hq ? hq.lng : '';
+
+        box.innerHTML = `
+          <div class="space-y-6">
+            <!-- CONFIGURAZIONE SEDE GPS (RAGGIO MAX 50 METRI) -->
+            <div class="bg-zinc-950 border border-zinc-800 rounded-3xl p-6">
+              <div class="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h2 class="text-base font-extrabold text-white">Posizione Sede per Timbratura GPS (Raggio Max 50 Metri)</h2>
+                  <p class="text-xs text-zinc-400 mt-0.5">Gli operatori con tasto GPS attivo potranno timbrare solo entro <strong class="text-white">50 metri</strong> da queste coordinate.</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-2 text-xs">
+                  <input id="hqLatInput" type="text" value="${hqLatVal}" placeholder="Latitudine (es. 40.96521)" class="w-40 px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono" />
+                  <input id="hqLngInput" type="text" value="${hqLngVal}" placeholder="Longitudine (es. 14.20512)" class="w-40 px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono" />
+                  <button type="button" onclick="detectCurrentHqCoords()" class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 text-white font-bold">
+                    Rileva Mia Posizione
+                  </button>
+                  <button type="button" onclick="saveHqCoords()" class="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold">
+                    Salva Sede
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div class="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 h-fit">
+                <h2 class="text-base font-extrabold text-white mb-4">Nuovo Operatore</h2>
+                <form onsubmit="createOperatore(event)" class="space-y-3 text-xs">
+                  <div>
+                    <label class="block text-zinc-400 font-semibold mb-1">Nome e Cognome</label>
+                    <input id="newOpName" type="text" required placeholder="Es. Mario Rossi" class="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white" />
+                  </div>
+                  <div>
+                    <label class="block text-zinc-400 font-semibold mb-1">Email Operatore</label>
+                    <input id="newOpEmail" type="email" placeholder="mario.rossi@email.it" class="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white" />
+                  </div>
+                  <div class="grid grid-cols-2 gap-2">
+                    <div>
+                      <label class="block text-zinc-400 font-semibold mb-1">Codice Operatore</label>
+                      <input id="newOpCode" type="text" required placeholder="LO00021" class="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white uppercase" />
+                    </div>
+                    <div>
+                      <label class="block text-zinc-400 font-semibold mb-1">PIN (4 cifre)</label>
+                      <input id="newOpPin" type="text" required placeholder="1234" class="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white" />
+                    </div>
+                  </div>
+                  ${ctx.isSuperAdmin ? `
+                    <div>
+                      <label class="block text-zinc-400 font-semibold mb-1">Inquadramento</label>
+                      <select id="newOpType" class="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white">
+                        <option value="Diretto">Dipendente Diretto</option>
+                        <option value="Cooperativa">Cooperativa / Esterno</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="block text-zinc-400 font-semibold mb-1">Cooperativa Collegata (opzionale)</label>
+                      <select id="newOpCoopId" class="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white">
+                        <option value="">Nessuna / Gestione Interna</option>
+                        ${state.cooperative.map(function (c) {
+                          return `<option value="${c.id}">${escapeHtml(c.nome)}</option>`;
+                        }).join('')}
+                      </select>
+                    </div>
+                  ` : ''}
+                  <div>
+                    <label class="block text-zinc-400 font-semibold mb-1">Sede / Commessa di Lavoro</label>
+                    <input id="newOpSede" type="text" value="CANDIDA" placeholder="Es. CANDIDA oppure Cliente Esterno" class="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white" />
+                  </div>
+                  <div class="flex items-center gap-2 pt-1">
+                    <input id="newOpGps" type="checkbox" class="rounded bg-zinc-900 border-zinc-700" />
+                    <label for="newOpGps" class="text-zinc-300">Abilita timbratura GPS (entro 50m sede)</label>
+                  </div>
+                  <button type="submit" class="w-full py-3 rounded-xl bg-white hover:bg-zinc-200 text-black font-bold mt-2">
+                    Salva Operatore
+                  </button>
+                </form>
+              </div>
+
+              <div class="lg:col-span-2 bg-zinc-950 border border-zinc-800 rounded-3xl p-6">
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                  <div>
+                    <h2 class="text-base font-extrabold text-white">Elenco Personale Registrato</h2>
+                    <span class="text-[11px] text-zinc-400">Usa il tasto GPS per abilitare o disabilitare la timbratura GPS (max 50m dalla sede)</span>
+                  </div>
+                  <button type="button" onclick="copyAllOperatorEmails()" class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 text-white font-bold text-xs transition-colors">
+                    Copia Tutte le Email (CCN)
+                  </button>
+                </div>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr class="border-b border-zinc-800 text-[11px] uppercase text-zinc-400">
+                        <th class="py-2.5 px-2">Codice</th>
+                        <th class="py-2.5 px-2">Nominativo / Email</th>
+                        <th class="py-2.5 px-2">Sede</th>
+                        <th class="py-2.5 px-2">PIN</th>
+                        <th class="py-2.5 px-2">Timbratura GPS (50m)</th>
+                        <th class="py-2.5 px-2 text-right">Invio Credenziali</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-zinc-800/70">
+                      ${scopedOperatori.map(function (o) {
+                        const opEmail = getOperatorEmail(o);
+                        const gpsOn = Boolean(o.abilitato_gps);
+                        return `
+                          <tr class="hover:bg-zinc-900/50">
+                            <td class="py-2.5 px-2 font-mono font-bold text-zinc-300">${escapeHtml(o.codice_operatore || '-')}</td>
+                            <td class="py-2.5 px-2">
+                              <div class="font-bold text-white">${escapeHtml(o.nome_completo)}</div>
+                              <div class="text-[11px] text-emerald-400/90">${opEmail ? escapeHtml(opEmail) : '<span class="italic text-zinc-600">Nessuna email</span>'}</div>
+                            </td>
+                            <td class="py-2.5 px-2 text-zinc-400">${escapeHtml(o.sede_lavoro || 'CANDIDA')}${o.nome_cooperativa ? ' (' + escapeHtml(o.nome_cooperativa) + ')' : ''}</td>
+                            <td class="py-2.5 px-2 font-mono text-zinc-400">${escapeHtml(o.pin_code || '-')}</td>
+                            <td class="py-2.5 px-2">
+                              <button type="button" onclick="toggleOperatorGps('${o.id}', ${gpsOn})" class="px-3 py-1 rounded-full font-extrabold text-[11px] transition-colors ${gpsOn ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30' : 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:bg-zinc-700'}">
+                                ${gpsOn ? 'GPS ATTIVO' : 'GPS DISATTIVO'}
+                              </button>
+                            </td>
+                            <td class="py-2.5 px-2 text-right">
+                              <div class="inline-flex items-center justify-end gap-1.5">
+                                <button type="button" onclick="openEmailCredentialsModal('${o.id}')" class="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] transition-colors">
+                                  Email
+                                </button>
+                                <button type="button" onclick="sendWhatsAppCredentials('${o.id}')" class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition-colors">
+                                  WhatsApp
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        `;
+                      }).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (state.adminTab === 'permessi') {
+        const realPermessi = scopedPermessi.filter(function (p) { return p.tipologia !== '__HQ_GPS_CONFIG__'; });
+        const daApprovareList = realPermessi.filter(function (p) { return p.stato === 'In attesa'; });
+        const approvateList = realPermessi.filter(function (p) { return p.stato !== 'In attesa'; });
+        const shownList = state.permessiSubTab === 'approvate' ? approvateList : daApprovareList;
+
+        box.innerHTML = `
+          <div class="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 space-y-5">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 class="text-lg font-extrabold text-white">Gestione Ferie, ROL e Permessi</h2>
+                <p class="text-xs text-zinc-400">Di default sono visibili solo le richieste da approvare</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <button type="button" onclick="setPermessiSubTab('da_approvare')" class="px-3.5 py-2 rounded-xl text-xs font-extrabold ${state.permessiSubTab === 'da_approvare' ? 'bg-amber-400 text-black' : 'bg-zinc-900 text-zinc-300 hover:text-white'}">
+                  Da Approvare (${daApprovareList.length})
+                </button>
+                <button type="button" onclick="setPermessiSubTab('approvate')" class="px-3.5 py-2 rounded-xl text-xs font-extrabold ${state.permessiSubTab === 'approvate' ? 'bg-emerald-400 text-black' : 'bg-zinc-900 text-zinc-300 hover:text-white'}">
+                  Approvate / Storico (${approvateList.length})
+                </button>
+              </div>
+            </div>
+
+            <div class="space-y-3">
+              ${shownList.length === 0 ? `<p class="text-xs text-zinc-500 py-4">Nessuna richiesta in questa sezione.</p>` : shownList.map(function (p) {
+                const op = scopedOperatori.find(function (o) { return o.id === p.operatore_id; });
+                return `
+                  <div class="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800 text-xs">
+                    <div>
+                      <div class="font-bold text-white text-sm">${escapeHtml(op ? op.nome_completo : 'Operatore')} &mdash; ${escapeHtml(p.tipologia)}</div>
+                      <div class="text-zinc-400 mt-0.5">${formatDateTime(p.data_inizio)} &rarr; ${formatDateTime(p.data_fine)}</div>
+                      ${p.note ? `<div class="text-zinc-300 mt-1 italic">"${escapeHtml(p.note)}"</div>` : ''}
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <span class="px-2.5 py-1 rounded-lg font-bold ${p.stato === 'Approvata' ? 'bg-emerald-500/20 text-emerald-300' : p.stato === 'Rifiutata' ? 'bg-red-500/20 text-red-300' : 'bg-amber-500/20 text-amber-300'}">${escapeHtml(p.stato)}</span>
+                      ${p.stato === 'In attesa' ? `
+                        <button onclick="updatePermessoStatus('${p.id}', 'Approvata')" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold">Approva</button>
+                        <button onclick="updatePermessoStatus('${p.id}', 'Rifiutata')" class="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold">Rifiuta</button>
+                      ` : ''}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      } else if (state.adminTab === 'report') {
+        const data = buildFullReportDataset(state.selectedMonth, state.reportFilterOpId);
+
+        box.innerHTML = `
+          <div class="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 space-y-5">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 class="text-lg font-extrabold text-white">Report Presenze, Straordinari e Ferie</h2>
+                <p class="text-xs text-zinc-400">Lun-Ven: 8h ordinarie (pausa 1h scalata), oltre 8h = Straordinario &bull; Sab/Dom: 100% Straordinario</p>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <select onchange="changeReportOperatorFilter(this.value)" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-xs font-bold">
+                  <option value="ALL" ${state.reportFilterOpId === 'ALL' ? 'selected' : ''}>Tutti gli Operatori</option>
+                  ${scopedOperatori.map(function (o) {
+                    return `<option value="${o.id}" ${state.reportFilterOpId === o.id ? 'selected' : ''}>${escapeHtml(o.nome_completo)}</option>`;
+                  }).join('')}
+                </select>
+                <input type="month" value="${state.selectedMonth}" onchange="changeReportMonth(this.value)" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-xs font-bold" />
+                <button onclick="exportExcelWorkbook()" class="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-extrabold transition-colors">
+                  Esporta Excel (.xlsx) 3 Fogli
+                </button>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2 border-b border-zinc-800 pb-3">
+              <button onclick="setReportSubTab('riepilogo')" class="px-3 py-1.5 rounded-lg text-xs font-bold ${state.reportSubTab === 'riepilogo' ? 'bg-white text-black' : 'bg-zinc-900 text-zinc-400 hover:text-white'}">
+                Foglio 1: Riepilogo Operatori (${data.summaryRows.length})
+              </button>
+              <button onclick="setReportSubTab('permessi')" class="px-3 py-1.5 rounded-lg text-xs font-bold ${state.reportSubTab === 'permessi' ? 'bg-white text-black' : 'bg-zinc-900 text-zinc-400 hover:text-white'}">
+                Foglio 2: Ferie &amp; Permessi (${data.leaveRows.length})
+              </button>
+              <button onclick="setReportSubTab('giornaliero')" class="px-3 py-1.5 rounded-lg text-xs font-bold ${state.reportSubTab === 'giornaliero' ? 'bg-white text-black' : 'bg-zinc-900 text-zinc-400 hover:text-white'}">
+                Foglio 3: Dettaglio Giornaliero (${data.dailyRows.length})
+              </button>
+            </div>
+
+            ${state.reportSubTab === 'riepilogo' ? `
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr class="border-b border-zinc-800 text-[11px] uppercase text-zinc-400">
+                      <th class="py-3 px-3">Codice</th>
+                      <th class="py-3 px-3">Operatore</th>
+                      <th class="py-3 px-3">Inquadramento / Sede</th>
+                      <th class="py-3 px-3">Giorni Lav.</th>
+                      <th class="py-3 px-3">Ore Ordinarie</th>
+                      <th class="py-3 px-3">Ore Straord.</th>
+                      <th class="py-3 px-3">Totale Ore</th>
+                      <th class="py-3 px-3">Ferie (h)</th>
+                      <th class="py-3 px-3">Permessi/ROL (h)</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-zinc-800/70">
+                    ${data.summaryRows.map(function (r) {
+                      return `
+                        <tr class="hover:bg-zinc-900/50">
+                          <td class="py-3 px-3 font-mono text-zinc-400">${escapeHtml(r.codice)}</td>
+                          <td class="py-3 px-3 font-bold text-white">${escapeHtml(r.nome)}</td>
+                          <td class="py-3 px-3 text-zinc-400">${escapeHtml(r.inquadramento)}</td>
+                          <td class="py-3 px-3 font-bold text-white">${r.giorniLavorati}</td>
+                          <td class="py-3 px-3 font-bold text-emerald-400">${r.oreOrdinarie.toFixed(2)} h</td>
+                          <td class="py-3 px-3 font-bold text-amber-400">${r.oreStraordinario.toFixed(2)} h</td>
+                          <td class="py-3 px-3 font-extrabold text-white">${r.oreTotaliLavorate.toFixed(2)} h</td>
+                          <td class="py-3 px-3 text-blue-300">${r.oreFerie.toFixed(2)} h</td>
+                          <td class="py-3 px-3 text-purple-300">${r.orePermessi.toFixed(2)} h</td>
+                        </tr>
+                      `;
+                    }).join('')}
+                  </tbody>
+                </table>
+              </div>
+            ` : state.reportSubTab === 'permessi' ? `
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr class="border-b border-zinc-800 text-[11px] uppercase text-zinc-400">
+                      <th class="py-3 px-3">Codice</th>
+                      <th class="py-3 px-3">Operatore</th>
+                      <th class="py-3 px-3">Tipologia</th>
+                      <th class="py-3 px-3">Dal</th>
+                      <th class="py-3 px-3">Al</th>
+                      <th class="py-3 px-3">Ore Calcolate</th>
+                      <th class="py-3 px-3">Stato</th>
+                      <th class="py-3 px-3">Note</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-zinc-800/70">
+                    ${data.leaveRows.length === 0 ? `
+                      <tr><td colspan="8" class="py-6 text-center text-zinc-500">Nessun permesso o feria nel mese selezionato.</td></tr>
+                    ` : data.leaveRows.map(function (p) {
+                      return `
+                        <tr class="hover:bg-zinc-900/50">
+                          <td class="py-3 px-3 font-mono text-zinc-400">${escapeHtml(p.codice)}</td>
+                          <td class="py-3 px-3 font-bold text-white">${escapeHtml(p.nome)}</td>
+                          <td class="py-3 px-3 font-semibold text-blue-300">${escapeHtml(p.tipologia)}</td>
+                          <td class="py-3 px-3 text-zinc-300">${escapeHtml(p.inizio)}</td>
+                          <td class="py-3 px-3 text-zinc-300">${escapeHtml(p.fine)}</td>
+                          <td class="py-3 px-3 font-bold text-white">${p.oreCalcolate.toFixed(2)} h</td>
+                          <td class="py-3 px-3">
+                            <span class="px-2 py-0.5 rounded font-bold ${p.stato === 'Approvata' ? 'bg-emerald-500/20 text-emerald-300' : p.stato === 'Rifiutata' ? 'bg-red-500/20 text-red-300' : 'bg-amber-500/20 text-amber-300'}">${escapeHtml(p.stato)}</span>
+                          </td>
+                          <td class="py-3 px-3 text-zinc-400">${escapeHtml(p.note || '-')}</td>
+                        </tr>
+                      `;
+                    }).join('')}
+                  </tbody>
+                </table>
+              </div>
+            ` : `
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr class="border-b border-zinc-800 text-[11px] uppercase text-zinc-400">
+                      <th class="py-3 px-3">Data</th>
+                      <th class="py-3 px-3">Giorno</th>
+                      <th class="py-3 px-3">Operatore</th>
+                      <th class="py-3 px-3">Entrata</th>
+                      <th class="py-3 px-3">Uscita Pausa</th>
+                      <th class="py-3 px-3">Entrata Pausa</th>
+                      <th class="py-3 px-3">Uscita</th>
+                      <th class="py-3 px-3">Pausa</th>
+                      <th class="py-3 px-3">Ordinarie</th>
+                      <th class="py-3 px-3">Straord.</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-zinc-800/70">
+                    ${data.dailyRows.length === 0 ? `
+                      <tr><td colspan="10" class="py-6 text-center text-zinc-500">Nessuna timbratura nel mese selezionato.</td></tr>
+                    ` : data.dailyRows.map(function (r) {
+                      return `
+                        <tr class="hover:bg-zinc-900/50">
+                          <td class="py-3 px-3 font-bold text-white">${escapeHtml(r.dataFormattata)}</td>
+                          <td class="py-3 px-3 ${r.isWeekend ? 'text-amber-400 font-bold' : 'text-zinc-400'}">${escapeHtml(r.giornoSettimana)}</td>
+                          <td class="py-3 px-3 font-bold text-white">${escapeHtml(r.nome)}</td>
+                          <td class="py-3 px-3 font-mono text-emerald-300">${escapeHtml(r.oraEntrata)}</td>
+                          <td class="py-3 px-3 font-mono text-zinc-300">${escapeHtml(r.oraInizioPausa)}</td>
+                          <td class="py-3 px-3 font-mono text-zinc-300">${escapeHtml(r.oraFinePausa)}</td>
+                          <td class="py-3 px-3 font-mono text-amber-300">${escapeHtml(r.oraUscita)}</td>
+                          <td class="py-3 px-3 text-zinc-400">-${r.pausaScalata.toFixed(2)} h</td>
+                          <td class="py-3 px-3 font-bold text-emerald-400">${r.oreOrdinarie.toFixed(2)} h</td>
+                          <td class="py-3 px-3 font-bold text-amber-400">${r.oreStraordinario.toFixed(2)} h</td>
+                        </tr>
+                      `;
+                    }).join('')}
+                  </tbody>
+                </table>
+              </div>
+            `}
+          </div>
+        `;
+      } else if (state.adminTab === 'cooperative' && ctx.isSuperAdmin) {
+        const nextYearDate = new Date();
+        nextYearDate.setFullYear(nextYearDate.getFullYear() + 1);
+        const defaultScadenza = nextYearDate.toISOString().slice(0, 10);
+
+        box.innerHTML = `
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 h-fit">
+              <h2 class="text-base font-extrabold text-white mb-1">Nuova Cooperativa Client</h2>
+              <p class="text-[11px] text-zinc-400 mb-4">Crea prima l'utente email su Supabase Authentication, poi collegalo qui.</p>
+              <form onsubmit="createCooperativa(event)" class="space-y-3 text-xs">
+                <div>
+                  <label class="block text-zinc-400 font-semibold mb-1">Ragione Sociale Cooperativa</label>
+                  <input id="newCoopName" type="text" required placeholder="Es. Cooperativa Logistica Sud" class="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white" />
+                </div>
+                <div>
+                  <label class="block text-zinc-400 font-semibold mb-1">Email Accesso Admin Cooperativa</label>
+                  <input id="newCoopEmail" type="email" required placeholder="admin@cooperativa.it" class="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white" />
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="block text-zinc-400 font-semibold mb-1">Partita IVA</label>
+                    <input id="newCoopPiva" type="text" placeholder="01234567890" class="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white" />
+                  </div>
+                  <div>
+                    <label class="block text-zinc-400 font-semibold mb-1">Max Dipendenti</label>
+                    <input id="newCoopMaxDip" type="number" required value="50" min="1" class="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white" />
+                  </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="block text-zinc-400 font-semibold mb-1">Canone Annuo (&euro;)</label>
+                    <input id="newCoopCanone" type="number" step="0.01" required value="1200.00" class="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white" />
+                  </div>
+                  <div>
+                    <label class="block text-zinc-400 font-semibold mb-1">Scadenza Annuale</label>
+                    <input id="newCoopScadenza" type="date" required value="${defaultScadenza}" class="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white" />
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-zinc-400 font-semibold mb-1">Link Pagamento Stripe (opzionale)</label>
+                  <input id="newCoopStripe" type="url" placeholder="https://buy.stripe.com/..." class="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white" />
+                </div>
+                <button type="submit" class="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold mt-2">
+                  Attiva Licenza Cooperativa
+                </button>
+              </form>
+            </div>
+
+            <div class="lg:col-span-2 bg-zinc-950 border border-zinc-800 rounded-3xl p-6">
+              <div class="mb-4">
+                <h2 class="text-base font-extrabold text-white">Cooperative Attive &amp; Canoni Annui</h2>
+                <p class="text-[11px] text-zinc-400">Ogni cooperativa gestisce in autonomia i propri dipendenti (anche presso clienti esterni).</p>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr class="border-b border-zinc-800 text-[11px] uppercase text-zinc-400">
+                      <th class="py-2.5 px-2">Cooperativa / Admin</th>
+                      <th class="py-2.5 px-2">Dipendenti</th>
+                      <th class="py-2.5 px-2">Canone Annuo</th>
+                      <th class="py-2.5 px-2">Scadenza</th>
+                      <th class="py-2.5 px-2">Stato</th>
+                      <th class="py-2.5 px-2 text-right">Gestione</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-zinc-800/70">
+                    ${state.cooperative.length === 0 ? `
+                      <tr><td colspan="6" class="py-6 text-center text-zinc-500">Nessuna cooperativa registrata.</td></tr>
+                    ` : state.cooperative.map(function (c) {
+                      const countDip = state.operatori.filter(function (o) { return o.cooperativa_id === c.id; }).length;
+                      const valid = isCoopSubscriptionValid(c);
+                      return `
+                        <tr class="hover:bg-zinc-900/50">
+                          <td class="py-3 px-2">
+                            <div class="font-bold text-white">${escapeHtml(c.nome)}</div>
+                            <div class="text-[11px] text-zinc-400">${escapeHtml(c.email_admin)}</div>
+                          </td>
+                          <td class="py-3 px-2 font-bold text-white">${countDip} / ${c.max_dipendenti || 50}</td>
+                          <td class="py-3 px-2 font-bold text-emerald-400">&euro; ${Number(c.canone_annuo || 0).toFixed(2)}</td>
+                          <td class="py-3 px-2 text-zinc-300">${escapeHtml(formatDayKeyItalian(String(c.data_scadenza || '').slice(0, 10)))}</td>
+                          <td class="py-3 px-2">
+                            <span class="px-2 py-0.5 rounded font-extrabold text-[11px] ${valid ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'}">
+                              ${valid ? escapeHtml(c.stato_abbonamento || 'ATTIVO') : 'SCADUTO'}
+                            </span>
+                          </td>
+                          <td class="py-3 px-2 text-right">
+                            <div class="inline-flex items-center gap-1.5">
+                              <button type="button" onclick="renewCoopOneYear('${c.id}', '${String(c.data_scadenza || '').slice(0, 10)}')" class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px]">
+                                +1 Anno
+                              </button>
+                              <button type="button" onclick="toggleCoopStatus('${c.id}', '${c.stato_abbonamento || 'ATTIVO'}')" class="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-bold text-[11px]">
+                                ${valid ? 'Sospendi' : 'Riattiva'}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      `;
+                    }).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    async function createCooperativa(e) {
+      e.preventDefault();
+      if (!supabaseClient) return;
+      const payload = {
+        nome: document.getElementById('newCoopName').value.trim(),
+        email_admin: document.getElementById('newCoopEmail').value.trim().toLowerCase(),
+        partita_iva: document.getElementById('newCoopPiva').value.trim() || null,
+        max_dipendenti: Number(document.getElementById('newCoopMaxDip').value) || 50,
+        canone_annuo: Number(document.getElementById('newCoopCanone').value) || 0,
+        data_scadenza: document.getElementById('newCoopScadenza').value,
+        stripe_payment_link: document.getElementById('newCoopStripe').value.trim() || null,
+        stato_abbonamento: 'ATTIVO'
+      };
+      const { error } = await supabaseClient.from('cooperative').insert([payload]);
+      if (error) {
+        showToast('Errore creazione cooperativa: ' + error.message, true);
+        return;
+      }
+      await loadAllData();
+      renderAdminView();
+      showToast('Cooperativa attivata con successo!');
+    }
+
+    async function renewCoopOneYear(coopId, currentExpiry) {
+      if (!supabaseClient) return;
+      const baseDate = currentExpiry ? new Date(currentExpiry) : new Date();
+      if (baseDate < new Date()) baseDate.setTime(Date.now());
+      baseDate.setFullYear(baseDate.getFullYear() + 1);
+      const nextExpiryStr = baseDate.toISOString().slice(0, 10);
+
+      const { error } = await supabaseClient
+        .from('cooperative')
+        .update({ data_scadenza: nextExpiryStr, stato_abbonamento: 'ATTIVO' })
+        .eq('id', coopId);
+
+      if (error) {
+        showToast('Errore rinnovo: ' + error.message, true);
+        return;
+      }
+      await loadAllData();
+      renderAdminView();
+      showToast('Abbonamento rinnovato fino al ' + formatDayKeyItalian(nextExpiryStr));
+    }
+
+    async function toggleCoopStatus(coopId, currentStatus) {
+      if (!supabaseClient) return;
+      const newStatus = currentStatus === 'ATTIVO' ? 'SOSPESO' : 'ATTIVO';
+      await supabaseClient.from('cooperative').update({ stato_abbonamento: newStatus }).eq('id', coopId);
+      await loadAllData();
+      renderAdminView();
+      showToast('Stato cooperativa aggiornato: ' + newStatus);
+    }
+
+    // =========================================================================
+    // MODALE MODIFICA TIMBRATURA (SOLO ADMIN)
+    // =========================================================================
+    function openEditTimbModal(timbId, opId, dateKey, category) {
+      if (!state.adminSession) return;
+      const op = getScopedOperatori().find(function (o) { return o.id === opId; });
+      const timb = timbId ? state.timbrature.find(function (t) { return t.id === timbId; }) : null;
+
+      document.getElementById('editTimbId').value = timbId || '';
+      document.getElementById('editTimbOpId').value = opId;
+      document.getElementById('editTimbDateKey').value = dateKey;
+      document.getElementById('editTimbCategory').value = category;
+      document.getElementById('editTimbCatSelect').value = category;
+
+      document.getElementById('editTimbModalTitle').textContent = timb ? 'Modifica Timbratura' : 'Inserisci Timbratura Manuale';
+      document.getElementById('editTimbModalSubtitle').textContent = (op ? op.nome_completo : '') + ' — Data: ' + formatDayKeyItalian(dateKey);
+
+      if (timb) {
+        const d = new Date(timb.orario);
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        document.getElementById('editTimbTimeInput').value = hh + ':' + mm;
+        document.getElementById('editTimbMetodoSelect').value = (timb.metodo === 'GPS' || timb.metodo === 'GPS_MOBILE') ? 'GPS' : 'QR_DINAMICO';
+        document.getElementById('editTimbDeleteBtn').classList.remove('hidden');
+      } else {
+        document.getElementById('editTimbTimeInput').value = '08:00';
+        document.getElementById('editTimbMetodoSelect').value = 'QR_DINAMICO';
+        document.getElementById('editTimbDeleteBtn').classList.add('hidden');
+      }
+
+      document.getElementById('editTimbModal').classList.remove('hidden');
+    }
+
+    function closeEditTimbModal() {
+      document.getElementById('editTimbModal').classList.add('hidden');
+    }
+
+    async function saveEditedTimbratura(e) {
+      e.preventDefault();
+      if (!state.adminSession || !supabaseClient) return;
+
+      const timbId = document.getElementById('editTimbId').value;
+      const opId = document.getElementById('editTimbOpId').value;
+      const dateKey = document.getElementById('editTimbDateKey').value;
+      const category = document.getElementById('editTimbCatSelect').value;
+      const timeVal = document.getElementById('editTimbTimeInput').value;
+      const metodo = document.getElementById('editTimbMetodoSelect').value;
+
+      const dateParts = dateKey.split('-');
+      const timeParts = timeVal.split(':');
+      const localDateObj = new Date(
+        Number(dateParts[0]),
+        Number(dateParts[1]) - 1,
+        Number(dateParts[2]),
+        Number(timeParts[0]),
+        Number(timeParts[1]),
+        0
+      );
+      const isoOrario = localDateObj.toISOString();
+
+      let dbTipo = 'Entrata';
+      let tagIndirizzo = 'Modifica Admin';
+      if (category === 'INIZIO_PAUSA') {
+        dbTipo = 'Uscita';
+        tagIndirizzo = '[INIZIO_PAUSA] Modifica Admin';
+      } else if (category === 'FINE_PAUSA') {
+        dbTipo = 'Entrata';
+        tagIndirizzo = '[FINE_PAUSA] Modifica Admin';
+      } else if (category === 'USCITA') {
+        dbTipo = 'Uscita';
+      }
+
+      if (timbId) {
+        const { error } = await supabaseClient
+          .from('timbrature')
+          .update({
+            tipo: dbTipo,
+            metodo: metodo,
+            orario: isoOrario,
+            indirizzo_rilevato: tagIndirizzo
+          })
+          .eq('id', timbId);
+
+        if (error) {
+          showToast('Errore aggiornamento: ' + error.message, true);
+          return;
+        }
+      } else {
+        const { error } = await supabaseClient
+          .from('timbrature')
+          .insert([{
+            operatore_id: opId,
+            tipo: dbTipo,
+            metodo: metodo,
+            orario: isoOrario,
+            indirizzo_rilevato: tagIndirizzo,
+            stato: 'Approvata'
+          }]);
+
+        if (error) {
+          showToast('Errore inserimento: ' + error.message, true);
+          return;
+        }
+      }
+
+      closeEditTimbModal();
+      await loadAllData();
+      renderAdminTabContent();
+      showToast('Timbratura salvata correttamente!');
+    }
+
+    async function deleteCurrentEditedTimbratura() {
+      const timbId = document.getElementById('editTimbId').value;
+      if (!timbId || !supabaseClient) return;
+      await supabaseClient.from('timbrature').delete().eq('id', timbId);
+      closeEditTimbModal();
+      await loadAllData();
+      renderAdminTabContent();
+      showToast('Timbratura eliminata');
+    }
+
+    // =========================================================================
+    // TOGGLE GPS OPERATORE & POSIZIONE SEDE (MAX 50 METRI)
+    // =========================================================================
+    async function toggleOperatorGps(opId, currentStatus) {
+      if (!supabaseClient) return;
+      const newStatus = !currentStatus;
+      const { error } = await supabaseClient
+        .from('operatori')
+        .update({ abilitato_gps: newStatus })
+        .eq('id', opId);
+
+      if (error) {
+        showToast('Errore aggiornamento GPS: ' + error.message, true);
+        return;
+      }
+      await loadAllData();
+      renderAdminTabContent();
+      showToast(newStatus ? 'Timbratura GPS attivata (entro 50m dalla sede)' : 'Timbratura GPS disattivata per l\'operatore');
+    }
+
+    function detectCurrentHqCoords() {
+      if (!navigator.geolocation) {
+        showToast('GPS non supportato dal browser', true);
+        return;
+      }
+      showToast('Rilevamento coordinate sede in corso...');
+      navigator.geolocation.getCurrentPosition(
+        function (pos) {
+          document.getElementById('hqLatInput').value = pos.coords.latitude.toFixed(6);
+          document.getElementById('hqLngInput').value = pos.coords.longitude.toFixed(6);
+          showToast('Coordinate rilevate! Premi "Salva Sede" per confermare.');
+        },
+        function () {
+          showToast('Impossibile rilevare la posizione. Inserisci le coordinate manualmente.', true);
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+
+    async function saveHqCoords() {
+      const lat = document.getElementById('hqLatInput').value.trim();
+      const lng = document.getElementById('hqLngInput').value.trim();
+      if (!lat || !lng || isNaN(Number(lat)) || isNaN(Number(lng))) {
+        showToast('Inserisci Latitudine e Longitudine valide', true);
+        return;
+      }
+
+      const ctx = getAdminContext();
+      if (!ctx.isSuperAdmin && ctx.coop && supabaseClient) {
+        await supabaseClient
+          .from('cooperative')
+          .update({ hq_lat: Number(lat), hq_lng: Number(lng) })
+          .eq('id', ctx.coop.id);
+        await loadAllData();
+        showToast('Coordinate Sede della Cooperativa salvate (Raggio max 50m)!');
+        return;
+      }
+
+      state.hqCoords = { lat: lat, lng: lng };
+      localStorage.setItem(STORAGE_HQ_COORDS, JSON.stringify(state.hqCoords));
+
+      if (supabaseClient && state.operatori.length > 0) {
+        const existing = state.permessi.find(function (p) { return p.tipologia === '__HQ_GPS_CONFIG__'; });
+        const nowIso = new Date().toISOString();
+        if (existing) {
+          await supabaseClient.from('permessi').update({ note: lat + ',' + lng }).eq('id', existing.id);
+        } else {
+          await supabaseClient.from('permessi').insert([{
+            operatore_id: state.operatori[0].id,
+            tipologia: '__HQ_GPS_CONFIG__',
+            data_inizio: nowIso,
+            data_fine: nowIso,
+            note: lat + ',' + lng,
+            stato: 'Approvata'
+          }]);
+        }
+        await loadAllData();
+      }
+      showToast('Coordinate Sede salvate! Raggio massimo GPS impostato a 50 metri.');
+    }
+
+    async function quickJustifyAbsence(opId, dateKey) {
+      if (!supabaseClient) return;
+      const parts = dateKey.split('-');
+      const startIso = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), 8, 0, 0).toISOString();
+      const endIso = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), 17, 0, 0).toISOString();
+
+      const { error } = await supabaseClient.from('permessi').insert([{
+        operatore_id: opId,
+        tipologia: 'Permesso Orario / ROL',
+        data_inizio: startIso,
+        data_fine: endIso,
+        note: 'Giustificato da Amministratore',
+        stato: 'Approvata'
+      }]);
+
+      if (error) {
+        showToast('Errore giustificativo: ' + error.message, true);
+        return;
+      }
+      await loadAllData();
+      renderAdminTabContent();
+      showToast('Assenza giustificata e approvata!');
+    }
+
+    async function handleAdminLogin(e) {
+      e.preventDefault();
+      if (!supabaseClient) {
+        showToast('Database non connesso', true);
+        return;
+      }
+      const btn = document.getElementById('adminLoginSubmitBtn');
+      if (btn) btn.textContent = 'Accesso in corso...';
+
+      const email = document.getElementById('adminEmail').value.trim();
+      const password = document.getElementById('adminPassword').value;
+
+      try {
+        const { data, error } = await withTimeout(
+          supabaseClient.auth.signInWithPassword({
+            email: email,
+            password: password
+          }),
+          7000
+        );
+
+        if (error || !data.session) {
+          showToast('Credenziali Admin non valide: ' + (error ? error.message : ''), true);
+          if (btn) btn.textContent = 'Accedi alla Dashboard';
+          return;
+        }
+
+        state.adminSession = data.session;
+        await loadAllData();
+        renderAdminView();
+        showToast('Accesso Amministratore effettuato');
+      } catch (err) {
+        showToast('Timeout connessione durante login Admin', true);
+        if (btn) btn.textContent = 'Accedi alla Dashboard';
+      }
+    }
+
+    async function logoutAdmin() {
+      if (supabaseClient) await supabaseClient.auth.signOut().catch(function () {});
+      state.adminSession = null;
+      state.adminTab = 'live';
+      renderAdminView();
+    }
+
+    async function createOperatore(e) {
+      e.preventDefault();
+      if (!supabaseClient) return;
+
+      const ctx = getAdminContext();
+      const emailVal = document.getElementById('newOpEmail').value.trim();
+      const sedeVal = (document.getElementById('newOpSede').value || 'CANDIDA').trim();
+
+      let coopId = null;
+      let coopName = null;
+      let inquadramento = 'Diretto';
+
+      if (!ctx.isSuperAdmin && ctx.coop) {
+        const currentCount = getScopedOperatori().length;
+        const maxAllowed = Number(ctx.coop.max_dipendenti) || 50;
+        if (currentCount >= maxAllowed) {
+          showToast('Hai raggiunto il limite massimo di ' + maxAllowed + ' dipendenti previsto dal tuo piano annuo.', true);
+          return;
+        }
+        coopId = ctx.coop.id;
+        coopName = ctx.coop.nome;
+        inquadramento = 'Cooperativa';
+      } else {
+        inquadramento = document.getElementById('newOpType').value;
+        const selectedCoopId = document.getElementById('newOpCoopId').value;
+        if (selectedCoopId) {
+          coopId = selectedCoopId;
+          const foundCoop = state.cooperative.find(function (c) { return c.id === selectedCoopId; });
+          if (foundCoop) coopName = foundCoop.nome;
+        }
+      }
+
+      const payload = {
+        nome_completo: document.getElementById('newOpName').value.trim(),
+        codice_operatore: document.getElementById('newOpCode').value.trim().toUpperCase(),
+        pin_code: document.getElementById('newOpPin').value.trim(),
+        inquadramento: inquadramento,
+        nome_cooperativa: coopName,
+        cooperativa_id: coopId,
+        sede_lavoro: sedeVal || 'CANDIDA',
+        abilitato_gps: document.getElementById('newOpGps').checked,
+        attivo: true
+      };
+
+      let res = await supabaseClient.from('operatori').insert([Object.assign({}, payload, emailVal ? { email: emailVal } : {})]).select();
+      if (res.error) {
+        // Fallback se le nuove colonne SQL non sono ancora state aggiunte
+        const fallbackPayload = {
+          nome_completo: payload.nome_completo,
+          codice_operatore: payload.codice_operatore,
+          pin_code: payload.pin_code,
+          inquadramento: payload.inquadramento,
+          nome_cooperativa: payload.nome_cooperativa,
+          abilitato_gps: payload.abilitato_gps,
+          attivo: true
+        };
+        res = await supabaseClient.from('operatori').insert([fallbackPayload]).select();
+      }
+      if (res.error) {
+        showToast('Errore inserimento: ' + res.error.message, true);
+        return;
+      }
+      if (emailVal && res.data && res.data[0]) {
+        savedEmailsMap[res.data[0].id] = emailVal;
+        localStorage.setItem(STORAGE_OP_EMAILS, JSON.stringify(savedEmailsMap));
+      }
+      await loadAllData();
+      renderAdminView();
+      showToast('Operatore aggiunto');
+    }
+
+    async function updatePermessoStatus(id, stato) {
+      if (!supabaseClient) return;
+      await supabaseClient.from('permessi').update({ stato: stato }).eq('id', id);
+      await loadAllData();
+      renderAdminView();
+      showToast('Richiesta aggiornata: ' + stato);
+    }
+
+    function changeReportMonth(val) {
+      state.selectedMonth = val;
+      renderAdminTabContent();
+    }
+
+    function changeReportOperatorFilter(opId) {
+      state.reportFilterOpId = opId;
+      renderAdminTabContent();
+    }
+
+    // =========================================================================
+    // MOTORE DI CALCOLO COMPLETO (RIEPILOGO + PERMESSI/FERIE + DETTAGLIO GIORNALIERO)
+    // =========================================================================
+    function computeLeaveHours(startIso, endIso) {
+      const start = new Date(startIso);
+      const end = new Date(endIso);
+      const diffHours = (end - start) / 3600000;
+      if (diffHours <= 0) return 0;
+      if (diffHours <= 8) return Math.round(diffHours * 100) / 100;
+      let workDays = 0;
+      const cur = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+      const last = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+      while (cur <= last) {
+        const dow = cur.getDay();
+        if (dow >= 1 && dow <= 5) workDays++;
+        cur.setDate(cur.getDate() + 1);
+      }
+      return workDays > 0 ? workDays * 8 : Math.round(diffHours * 100) / 100;
+    }
+
+    function buildFullReportDataset(ym, filterOpId) {
+      const dailyRows = [];
+      const leaveRows = [];
+      const summaryRows = [];
+      const giorniSettimanaNomi = ['Domenica', 'Lunedi', 'Martedi', 'Mercoledi', 'Giovedi', 'Venerdi', 'Sabato'];
+      const scopedOps = getScopedOperatori();
+
+      scopedOps.forEach(function (op) {
+        if (filterOpId && filterOpId !== 'ALL' && op.id !== filterOpId) return;
+
+        const opPermessi = state.permessi.filter(function (p) {
+          return p.operatore_id === op.id && p.tipologia !== '__HQ_GPS_CONFIG__' && p.data_inizio && p.data_inizio.startsWith(ym);
+        });
+
+        let oreFerieApprovate = 0;
+        let orePermessiApprovati = 0;
+
+        opPermessi.forEach(function (p) {
+          const hrs = computeLeaveHours(p.data_inizio, p.data_fine);
+          const isFerie = String(p.tipologia || '').toLowerCase().includes('ferie');
+          if (p.stato === 'Approvata') {
+            if (isFerie) oreFerieApprovate += hrs;
+            else orePermessiApprovati += hrs;
+          }
+          leaveRows.push({
+            codice: op.codice_operatore || '-',
+            nome: op.nome_completo,
+            inquadramento: op.inquadramento || '-',
+            tipologia: p.tipologia,
+            inizio: formatDateTime(p.data_inizio),
+            fine: formatDateTime(p.data_fine),
+            oreCalcolate: hrs,
+            stato: p.stato,
+            note: p.note || ''
+          });
+        });
+
+        const opTimb = state.timbrature
+          .filter(function (t) { return t.operatore_id === op.id && t.orario && t.orario.startsWith(ym); })
+          .sort(function (a, b) { return new Date(a.orario) - new Date(b.orario); });
+
+        const byDay = {};
+        opTimb.forEach(function (t) {
+          const dayKey = getLocalDayKey(t.orario);
+          if (!byDay[dayKey]) byDay[dayKey] = [];
+          byDay[dayKey].push(t);
+        });
+
+        let totalGiorni = 0;
+        let totalOrdinarie = 0;
+        let totalStraordinario = 0;
+
+        Object.keys(byDay).sort().forEach(function (dayKey) {
+          const events = byDay[dayKey];
+          const parts = dayKey.split('-');
+          const dateObj = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+          const dow = dateObj.getDay();
+          const isWeekend = (dow === 0 || dow === 6);
+
+          const entrataEv = events.find(function (e) { return classifyEvent(e) === 'ENTRATA'; });
+          const inizioPausaEv = events.find(function (e) { return classifyEvent(e) === 'INIZIO_PAUSA'; });
+          const finePausaEv = events.find(function (e) { return classifyEvent(e) === 'FINE_PAUSA'; });
+          const finalUscitaEv = events.slice().reverse().find(function (e) { return classifyEvent(e) === 'USCITA'; });
+
+          let workedMs = 0;
+          let activeStart = null;
+          events.forEach(function (e) {
+            const cat = classifyEvent(e);
+            if (cat === 'ENTRATA' || cat === 'FINE_PAUSA') {
+              activeStart = new Date(e.orario);
+            } else if ((cat === 'INIZIO_PAUSA' || cat === 'USCITA') && activeStart) {
+              const diff = new Date(e.orario) - activeStart;
+              if (diff > 0 && diff < 24 * 3600 * 1000) {
+                workedMs += diff;
+              }
+              activeStart = null;
+            }
+          });
+
+          let clockedPauseHours = 0;
+          if (inizioPausaEv && finePausaEv) {
+            const pDiff = (new Date(finePausaEv.orario) - new Date(inizioPausaEv.orario)) / 3600000;
+            if (pDiff > 0 && pDiff < 5) clockedPauseHours = pDiff;
+          }
+
+          let rawWorkedHours = workedMs / 3600000;
+          let autoPauseDeducted = 0;
+
+          if (clockedPauseHours === 0 && rawWorkedHours > 6.0) {
+            autoPauseDeducted = 1.0;
+          }
+
+          const netWorkedHours = Math.max(0, rawWorkedHours - autoPauseDeducted);
+          const totalPauseShown = clockedPauseHours > 0 ? clockedPauseHours : autoPauseDeducted;
+
+          let oreOrdinarie = 0;
+          let oreStraordinario = 0;
+
+          if (netWorkedHours > 0) {
+            totalGiorni++;
+            if (isWeekend) {
+              oreOrdinarie = 0;
+              oreStraordinario = netWorkedHours;
+            } else {
+              oreOrdinarie = Math.min(8.0, netWorkedHours);
+              oreStraordinario = Math.max(0, netWorkedHours - 8.0);
+            }
+          }
+
+          totalOrdinarie += oreOrdinarie;
+          totalStraordinario += oreStraordinario;
+
+          dailyRows.push({
+            dayKey: dayKey,
+            dataFormattata: parts[2] + '/' + parts[1] + '/' + parts[0],
+            giornoSettimana: giorniSettimanaNomi[dow],
+            isWeekend: isWeekend,
+            codice: op.codice_operatore || '-',
+            nome: op.nome_completo,
+            inquadramento: op.inquadramento || '-',
+            oraEntrata: entrataEv ? formatTimeOnly(entrataEv.orario) : '-',
+            oraInizioPausa: inizioPausaEv ? formatTimeOnly(inizioPausaEv.orario) : '-',
+            oraFinePausa: finePausaEv ? formatTimeOnly(finePausaEv.orario) : '-',
+            oraUscita: finalUscitaEv ? formatTimeOnly(finalUscitaEv.orario) : 'In corso',
+            pausaScalata: Math.round(totalPauseShown * 100) / 100,
+            oreOrdinarie: Math.round(oreOrdinarie * 100) / 100,
+            oreStraordinario: Math.round(oreStraordinario * 100) / 100,
+            oreNetteTotali: Math.round(netWorkedHours * 100) / 100
+          });
+        });
+
+        summaryRows.push({
+          codice: op.codice_operatore || '-',
+          nome: op.nome_completo,
+          inquadramento: op.inquadramento + (op.nome_cooperativa ? ' (' + op.nome_cooperativa + ')' : '') + (op.sede_lavoro ? ' - ' + op.sede_lavoro : ''),
+          giorniLavorati: totalGiorni,
+          oreOrdinarie: Math.round(totalOrdinarie * 100) / 100,
+          oreStraordinario: Math.round(totalStraordinario * 100) / 100,
+          oreTotaliLavorate: Math.round((totalOrdinarie + totalStraordinario) * 100) / 100,
+          oreFerie: Math.round(oreFerieApprovate * 100) / 100,
+          orePermessi: Math.round(orePermessiApprovati * 100) / 100
+        });
+      });
+
+      dailyRows.sort(function (a, b) {
+        if (a.dayKey !== b.dayKey) return b.dayKey.localeCompare(a.dayKey);
+        return a.nome.localeCompare(b.nome);
+      });
+
+      return { summaryRows: summaryRows, leaveRows: leaveRows, dailyRows: dailyRows };
+    }
+
+    function exportExcelWorkbook() {
+      const data = buildFullReportDataset(state.selectedMonth, state.reportFilterOpId);
+
+      if (typeof XLSX === 'undefined') {
+        showToast('Libreria Excel non caricata. Ricarica la pagina.', true);
+        return;
+      }
+
+      const wb = XLSX.utils.book_new();
+
+      const sheet1Data = [
+        ['Codice Operatore', 'Operatore', 'Inquadramento / Sede', 'Giorni Lavorati', 'Ore Ordinarie (Lun-Ven)', 'Ore Straordinario (Oltre 8h / Sab-Dom)', 'Totale Ore Lavorate', 'Ore Ferie Approvate', 'Ore Permessi/ROL Approvati']
+      ];
+      data.summaryRows.forEach(function (r) {
+        sheet1Data.push([
+          r.codice,
+          r.nome,
+          r.inquadramento,
+          r.giorniLavorati,
+          r.oreOrdinarie,
+          r.oreStraordinario,
+          r.oreTotaliLavorate,
+          r.oreFerie,
+          r.orePermessi
+        ]);
+      });
+      const ws1 = XLSX.utils.aoa_to_sheet(sheet1Data);
+      ws1['!cols'] = [{ wch: 16 }, { wch: 26 }, { wch: 28 }, { wch: 15 }, { wch: 22 }, { wch: 32 }, { wch: 20 }, { wch: 20 }, { wch: 25 }];
+      XLSX.utils.book_append_sheet(wb, ws1, 'Riepilogo_Operatori');
+
+      const sheet2Data = [
+        ['Codice Operatore', 'Operatore', 'Inquadramento', 'Tipologia', 'Data/Ora Inizio', 'Data/Ora Fine', 'Ore Calcolate', 'Stato Richiesta', 'Note']
+      ];
+      data.leaveRows.forEach(function (p) {
+        sheet2Data.push([
+          p.codice,
+          p.nome,
+          p.inquadramento,
+          p.tipologia,
+          p.inizio,
+          p.fine,
+          p.oreCalcolate,
+          p.stato,
+          p.note
+        ]);
+      });
+      const ws2 = XLSX.utils.aoa_to_sheet(sheet2Data);
+      ws2['!cols'] = [{ wch: 16 }, { wch: 26 }, { wch: 18 }, { wch: 22 }, { wch: 18 }, { wch: 18 }, { wch: 15 }, { wch: 16 }, { wch: 30 }];
+      XLSX.utils.book_append_sheet(wb, ws2, 'Ferie_e_Permessi');
+
+      const sheet3Data = [
+        ['Data', 'Giorno', 'Codice', 'Operatore', 'Entrata', 'Uscita Pausa', 'Entrata Pausa', 'Uscita', 'Pausa Scalata (h)', 'Ore Ordinarie', 'Ore Straordinario', 'Totale Ore Nette']
+      ];
+      data.dailyRows.forEach(function (d) {
+        sheet3Data.push([
+          d.dataFormattata,
+          d.giornoSettimana,
+          d.codice,
+          d.nome,
+          d.oraEntrata,
+          d.oraInizioPausa,
+          d.oraFinePausa,
+          d.oraUscita,
+          d.pausaScalata,
+          d.oreOrdinarie,
+          d.oreStraordinario,
+          d.oreNetteTotali
+        ]);
+      });
+      const ws3 = XLSX.utils.aoa_to_sheet(sheet3Data);
+      ws3['!cols'] = [{ wch: 13 }, { wch: 12 }, { wch: 12 }, { wch: 25 }, { wch: 10 }, { wch: 13 }, { wch: 14 }, { wch: 10 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 16 }];
+      XLSX.utils.book_append_sheet(wb, ws3, 'Dettaglio_Giornaliero');
+
+      XLSX.writeFile(wb, 'LogiTrack_Report_Presenze_' + state.selectedMonth + '.xlsx');
+      showToast('Report Excel (.xlsx) scaricato con 3 fogli!');
+    }
+
+    // =========================================================================
+    // INVIO CREDENZIALI VIA EMAIL & WHATSAPP
+    // =========================================================================
+    function openEmailCredentialsModal(opId) {
+      const op = getScopedOperatori().find(function (o) { return o.id === opId; });
+      if (!op) return;
+      state.activeEmailOpId = opId;
+
+      const ctx = getAdminContext();
+      const senderEmail = (!ctx.isSuperAdmin && ctx.coop) ? ctx.coop.email_admin : ADMIN_SENDER_EMAIL;
+      const senderName = (!ctx.isSuperAdmin && ctx.coop) ? ctx.coop.nome : 'Leandro Fucci';
+
+      const appUrl = window.location.origin + window.location.pathname;
+      const existingEmail = getOperatorEmail(op);
+
+      document.getElementById('emailModalSenderLabel').textContent = senderEmail;
+      document.getElementById('emailModalTo').value = existingEmail;
+      document.getElementById('emailModalSubject').value = 'Credenziali di accesso LogiTrack Presenze — ' + op.nome_completo;
+      document.getElementById('emailModalBody').value = [
+        'Gentile ' + op.nome_completo + ',',
+        '',
+        'di seguito trovi le tue credenziali personali per accedere all\'applicazione LogiTrack Presenze:',
+        '',
+        'Link Applicazione: ' + appUrl,
+        'Codice Operatore: ' + (op.codice_operatore || ''),
+        'PIN Personale: ' + (op.pin_code || ''),
+        '',
+        'Ti consigliamo di aprire il link dal tuo smartphone e aggiungerlo alla schermata Home per averlo sempre a portata di mano.',
+        '',
+        'Cordiali saluti,',
+        senderName,
+        senderEmail
+      ].join('\n');
+
+      document.getElementById('emailModal').classList.remove('hidden');
+    }
+
+    function closeEmailModal() {
+      document.getElementById('emailModal').classList.add('hidden');
+    }
+
+    async function persistOperatorEmailIfEdited() {
+      const opId = state.activeEmailOpId;
+      const toEmail = document.getElementById('emailModalTo').value.trim();
+      if (!opId || !toEmail) return;
+      savedEmailsMap[opId] = toEmail;
+      localStorage.setItem(STORAGE_OP_EMAILS, JSON.stringify(savedEmailsMap));
+      if (supabaseClient) {
+        await supabaseClient.from('operatori').update({ email: toEmail }).eq('id', opId);
+        const op = state.operatori.find(function (o) { return o.id === opId; });
+        if (op) op.email = toEmail;
+      }
+      renderAdminTabContent();
+    }
+
+    async function openMailtoClient() {
+      await persistOperatorEmailIfEdited();
+      const to = document.getElementById('emailModalTo').value.trim();
+      const subject = document.getElementById('emailModalSubject').value;
+      const body = document.getElementById('emailModalBody').value;
+      const mailtoUrl = 'mailto:' + encodeURIComponent(to) +
+        '?subject=' + encodeURIComponent(subject) +
+        '&body=' + encodeURIComponent(body);
+      window.location.href = mailtoUrl;
+      closeEmailModal();
+      showToast('Apertura client email per ' + (to || 'operatore') + '...');
+    }
+
+    async function copyEmailAndSave() {
+      await persistOperatorEmailIfEdited();
+      const to = document.getElementById('emailModalTo').value.trim();
+      const subject = document.getElementById('emailModalSubject').value;
+      const body = document.getElementById('emailModalBody').value;
+      const fullText = (to ? 'A: ' + to + '\n' : '') + 'Oggetto: ' + subject + '\n\n' + body;
+
+      try {
+        await navigator.clipboard.writeText(fullText);
+        showToast('Testo copiato! Incollalo nella tua webmail');
+      } catch (e) {
+        const ta = document.getElementById('emailModalBody');
+        ta.select();
+        document.execCommand('copy');
+        showToast('Corpo email copiato negli appunti!');
+      }
+      closeEmailModal();
+    }
+
+    function sendWhatsAppCredentials(opId) {
+      const op = getScopedOperatori().find(function (o) { return o.id === opId; });
+      if (!op) return;
+      const appUrl = window.location.origin + window.location.pathname;
+      const msg = [
+        'Ciao ' + op.nome_completo + ', ecco i tuoi dati di accesso per LogiTrack Presenze:',
+        '',
+        'Link App: ' + appUrl,
+        'Codice Operatore: ' + (op.codice_operatore || ''),
+        'PIN Personale: ' + (op.pin_code || ''),
+        '',
+        'Apri il link dal tuo telefono e salvalo nella schermata Home.'
+      ].join('\n');
+      const waUrl = 'https://wa.me/?text=' + encodeURIComponent(msg);
+      window.open(waUrl, '_blank');
+    }
+
+    // =========================================================================
+    // UTILITY
+    // =========================================================================
+    function formatDateTime(iso) {
+      if (!iso) return '-';
+      const d = new Date(iso);
+      return d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' +
+             d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function formatTimeOnly(iso) {
+      if (!iso) return '-';
+      return new Date(iso).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // =========================================================================
+    // AVVIO APPLICAZIONE
+    // =========================================================================
+    function initApp() {
+      updateNavVisibility();
+      renderCurrentViewUI();
+
+      checkCloudConnection().then(async function (connected) {
+        if (connected && supabaseClient) {
+          try {
+            const { data } = await withTimeout(supabaseClient.auth.getSession(), 5000);
+            if (data && data.session) {
+              state.adminSession = data.session;
+            }
+          } catch (e) {}
+          await loadAllData();
+          renderCurrentViewUI();
+        }
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initApp);
+    } else {
+      initApp();
+    }
+  </script>
+</body>
+</html>
