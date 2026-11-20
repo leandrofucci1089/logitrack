@@ -3007,16 +3007,18 @@
 // =========================================================================
     // MODIFICA ANAGRAFICA OPERATORE
     // =========================================================================
-    function openEditOperatoreModal(opId) {
+function openEditOperatoreModal(opId) {
       const op = state.operatori.find(function (o) { return o.id === opId; });
       if (!op) return;
 
+      const profilo = (state.profili || []).find(function (p) { return p.operatore_id === op.id; });
       const ctx = getAdminContext();
+
       document.getElementById('edit-op-id').value = op.id;
       document.getElementById('edit-op-nome').value = op.nome_completo || '';
       document.getElementById('edit-op-codice').value = op.codice_operatore || '';
-      document.getElementById('edit-op-pin').value = op.pin || '';
-      document.getElementById('edit-op-email').value = op.email || '';
+      document.getElementById('edit-op-pin').value = op.pin_code || '';
+      document.getElementById('edit-op-email').value = (profilo && profilo.email) || op.email || '';
       document.getElementById('edit-op-sede').value = op.sede_lavoro || 'CANDIDA';
       document.getElementById('edit-op-ore').value = op.ore_giornaliere || 8;
 
@@ -3058,22 +3060,29 @@
       const inquadramento = document.getElementById('edit-op-inquadramento').value;
       const coopId = inquadramento === 'Cooperativa' ? document.getElementById('edit-op-coop').value : null;
       const coopObj = coopId ? (state.cooperative || []).find(function (c) { return c.id === coopId; }) : null;
-const payload = {
+      const nuovaEmail = document.getElementById('edit-op-email').value.trim() || null;
+
+      const payload = {
         nome_completo: document.getElementById('edit-op-nome').value.trim(),
         codice_operatore: document.getElementById('edit-op-codice').value.trim(),
-        email: document.getElementById('edit-op-email').value.trim() || null,
+        pin_code: document.getElementById('edit-op-pin').value.trim(),
+        email: nuovaEmail,
         inquadramento: inquadramento,
         cooperativa_id: coopId,
         nome_cooperativa: coopObj ? coopObj.nome : null,
         sede_lavoro: document.getElementById('edit-op-sede').value.trim().toUpperCase() || 'CANDIDA',
         ore_giornaliere: parseFloat(document.getElementById('edit-op-ore').value) || 8
       };
-      
 
       const { error } = await supabaseClient.from('operatori').update(payload).eq('id', id);
       if (error) {
         alert('Errore salvataggio: ' + error.message);
         return;
+      }
+
+      // Se l'operatore ha un profilo collegato, aggiorna anche l'email lì
+      if (nuovaEmail) {
+        await supabaseClient.from('profili').update({ email: nuovaEmail }).eq('operatore_id', id);
       }
 
       closeEditOperatoreModal();
